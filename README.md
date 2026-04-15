@@ -7,7 +7,7 @@
 [![Single File](https://img.shields.io/badge/Single_File-Portable-success?style=for-the-badge&logo=html5)](index.html)
 
 ---
-<img width="1105" height="736" alt="image" src="https://github.com/user-attachments/assets/1fc8f610-a651-48bb-b058-8c77696c807d" />
+<img width="1079" height="740" alt="image" src="https://github.com/user-attachments/assets/b3c002b6-39a5-4c12-8b96-15dc3bfba084" />
 
 ## 💡 为什么需要这个工具？
 
