@@ -1,0 +1,1886 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simon Large Codebase Refactoring Skill — Claude Code</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;600;700;800&display=swap');
+  :root {
+    --bg:#0a0c10;--bg2:#10141c;--bg3:#161b26;--border:#1e2535;--border2:#2a3348;
+    --text:#c8d0e0;--text2:#7a8599;--text3:#4a5568;
+    --accent:#4f9eff;--accent2:#2563eb;
+    --green:#22c55e;--green-dim:#166534;
+    --amber:#f59e0b;--amber-dim:#78350f;
+    --purple:#a78bfa;--purple-dim:#3b1f6e;
+    --teal:#2dd4bf;--teal-dim:#0d4a44;
+    --coral:#fb7185;--coral-dim:#6b1f2e;
+    --mono:'JetBrains Mono',monospace;--sans:'Syne',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;line-height:1.6;min-height:100vh;}
+  .app{display:flex;min-height:100vh;}
+
+  /* ── Sidebar ── */
+  .sidebar{width:264px;min-width:264px;background:var(--bg2);border-right:1px solid var(--border);padding:20px 0 0;position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column;}
+  .sidebar-logo{padding:0 18px 18px;border-bottom:1px solid var(--border);margin-bottom:14px;}
+  .logo-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  .logo-tag{font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:.14em;text-transform:uppercase;text-decoration:none;transition:opacity .15s;}
+  .logo-tag:hover{opacity:.7;}
+  .lang-toggle{background:var(--bg3);border:1px solid var(--border2);color:var(--text2);padding:3px 9px;border-radius:4px;font-family:var(--mono);font-size:10px;font-weight:600;cursor:pointer;letter-spacing:.06em;transition:all .15s;}
+  .lang-toggle:hover{border-color:var(--accent);color:var(--accent);}
+  .sidebar-logo h1{font-family:var(--sans);font-size:15px;font-weight:700;color:#fff;line-height:1.35;}
+  .sidebar-progress{padding:0 18px 14px;border-bottom:1px solid var(--border);margin-bottom:6px;}
+  .progress-label{font-size:10px;color:var(--text3);letter-spacing:.1em;margin-bottom:7px;}
+  .progress-bar-wrap{background:var(--bg3);border-radius:3px;height:4px;overflow:hidden;margin-bottom:5px;}
+  .progress-bar-fill{height:100%;background:var(--accent);border-radius:3px;transition:width .4s ease;}
+  .progress-count{font-size:10px;color:var(--text2);}
+  .progress-count span{color:var(--accent);}
+  .nav-section{padding:6px 0;}
+  .nav-section-label{padding:4px 18px;font-size:10px;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;}
+  .nav-item{display:flex;align-items:center;gap:9px;padding:7px 18px;cursor:pointer;transition:background .15s;border-left:2px solid transparent;}
+  .nav-item:hover{background:var(--bg3);}
+  .nav-item.active{background:rgba(79,158,255,.08);border-left-color:var(--accent);}
+  .nav-item.done .nav-step-num{background:var(--green-dim);color:var(--green);}
+  .nav-item.done .nav-step-num::after{content:'✓';font-size:9px;}
+  .nav-step-num{width:20px;height:20px;border-radius:4px;background:var(--bg3);color:var(--text3);font-size:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-weight:600;border:1px solid var(--border);}
+  .nav-item.active .nav-step-num{background:var(--accent2);color:#fff;border-color:var(--accent);}
+  .nav-step-title{font-size:12px;color:var(--text2);line-height:1.3;flex:1;}
+  .nav-item.active .nav-step-title{color:var(--text);}
+  .nav-item.done .nav-step-title{color:var(--text2);}
+
+  /* ── Sidebar footer / star button ── */
+  .sidebar-footer{margin-top:auto;padding:14px 18px 18px;border-top:1px solid var(--border);}
+  .star-btn{display:flex;align-items:center;gap:8px;width:100%;padding:9px 14px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text2);font-family:var(--mono);font-size:12px;font-weight:500;cursor:pointer;text-decoration:none;transition:all .2s;}
+  .star-btn:hover{background:rgba(251,188,5,.07);border-color:rgba(251,188,5,.4);color:#fbbf24;}
+  .star-btn svg{flex-shrink:0;transition:transform .2s;}
+  .star-btn:hover svg{transform:scale(1.15);}
+  .star-count{margin-left:auto;font-size:11px;background:var(--bg);border:1px solid var(--border);padding:2px 7px;border-radius:10px;color:var(--text3);}
+
+  /* ── Main ── */
+  .main{flex:1;padding:30px 38px;max-width:860px;overflow-y:auto;}
+  .step-header{margin-bottom:26px;padding-bottom:18px;border-bottom:1px solid var(--border);}
+  .step-meta{display:flex;align-items:center;gap:10px;margin-bottom:9px;}
+  .phase-badge{font-size:10px;padding:3px 8px;border-radius:4px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;}
+  .step-counter{font-size:11px;color:var(--text3);}
+  .step-header h2{font-family:var(--sans);font-size:22px;font-weight:700;color:#fff;margin-bottom:8px;line-height:1.3;}
+  .step-desc{color:var(--text2);font-size:13px;line-height:1.7;max-width:680px;}
+  .goal-box{background:var(--bg2);border:1px solid var(--border);border-left:3px solid;border-radius:6px;padding:13px 15px;margin-bottom:18px;display:flex;gap:11px;align-items:flex-start;}
+  .goal-icon{font-size:15px;flex-shrink:0;margin-top:1px;}
+  .goal-box p{font-size:12px;color:var(--text2);line-height:1.6;}
+  .goal-box strong{color:var(--text);font-weight:500;}
+  .section{margin-bottom:22px;}
+  .section-title{font-size:11px;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:9px;display:flex;align-items:center;gap:8px;}
+  .section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+  .prompt-block{background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:11px;}
+  .prompt-header{display:flex;align-items:center;justify-content:space-between;padding:9px 13px;background:var(--bg3);border-bottom:1px solid var(--border);}
+  .prompt-label{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text2);}
+  .prompt-tag{font-size:9px;padding:2px 6px;border-radius:3px;font-weight:600;letter-spacing:.06em;}
+  .tag-claude{background:rgba(79,158,255,.15);color:var(--accent);}
+  .tag-terminal{background:rgba(34,197,94,.15);color:var(--green);}
+  .tag-file{background:rgba(167,139,250,.15);color:var(--purple);}
+  .tag-warn{background:rgba(245,158,11,.15);color:var(--amber);}
+  .copy-btn{background:none;border:1px solid var(--border2);color:var(--text3);padding:4px 10px;border-radius:4px;font-size:10px;cursor:pointer;font-family:var(--mono);transition:all .15s;}
+  .copy-btn:hover{background:var(--accent2);border-color:var(--accent);color:#fff;}
+  .copy-btn.copied{background:var(--green-dim);border-color:var(--green);color:var(--green);}
+  .prompt-body{padding:13px 15px;font-size:12.5px;line-height:1.7;color:#d0daf0;white-space:pre-wrap;word-break:break-word;}
+  .checklist{margin-bottom:18px;}
+  .check-item{display:flex;align-items:flex-start;gap:10px;padding:7px 11px;border-radius:6px;margin-bottom:4px;cursor:pointer;transition:background .15s;border:1px solid transparent;}
+  .check-item:hover{background:var(--bg2);border-color:var(--border);}
+  .check-item.checked{background:rgba(34,197,94,.05);border-color:rgba(34,197,94,.15);}
+  .check-box{width:16px;height:16px;border:1.5px solid var(--border2);border-radius:4px;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;transition:all .15s;font-size:10px;}
+  .check-item.checked .check-box{background:var(--green);border-color:var(--green);color:#fff;}
+  .check-text{font-size:12.5px;color:var(--text2);line-height:1.5;flex:1;}
+  .check-item.checked .check-text{color:var(--text3);text-decoration:line-through;}
+  .config-block{background:#0d1117;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:11px;}
+  .config-header{display:flex;align-items:center;justify-content:space-between;padding:8px 13px;background:var(--bg3);border-bottom:1px solid var(--border);}
+  .config-filename{font-size:11px;color:var(--purple);display:flex;align-items:center;gap:6px;}
+  .alert{border-radius:6px;padding:11px 13px;margin-bottom:13px;display:flex;gap:10px;align-items:flex-start;font-size:12px;line-height:1.6;border:1px solid;}
+  .alert-icon{flex-shrink:0;font-size:14px;}
+  .alert.warn{background:rgba(245,158,11,.07);border-color:rgba(245,158,11,.2);color:#d4a017;}
+  .alert.info{background:rgba(79,158,255,.07);border-color:rgba(79,158,255,.2);color:#7db8f7;}
+  .alert.success{background:rgba(34,197,94,.07);border-color:rgba(34,197,94,.2);color:#4ade80;}
+  .step-nav{display:flex;align-items:center;justify-content:space-between;margin-top:30px;padding-top:18px;border-top:1px solid var(--border);}
+  .nav-btn{display:flex;align-items:center;gap:8px;padding:9px 17px;border-radius:6px;font-family:var(--mono);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;border:1px solid var(--border2);background:var(--bg2);color:var(--text2);}
+  .nav-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}
+  .nav-btn:disabled{opacity:.3;cursor:not-allowed;}
+  .nav-btn.primary{background:var(--accent2);border-color:var(--accent);color:#fff;}
+  .nav-btn.primary:hover{background:#1d4ed8;}
+  .complete-btn{display:flex;align-items:center;gap:8px;padding:8px 13px;border-radius:6px;font-family:var(--mono);font-size:11px;cursor:pointer;transition:all .15s;border:1px solid rgba(34,197,94,.3);background:rgba(34,197,94,.08);color:var(--green);}
+  .complete-btn:hover{background:rgba(34,197,94,.15);}
+  .complete-btn.is-done{background:var(--green-dim);border-color:var(--green);}
+  .step-panel{display:none;animation:fadeIn .2s ease;}
+  .step-panel.active{display:block;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+  .info-table{width:100%;border-collapse:collapse;margin-bottom:15px;font-size:12px;}
+  .info-table th{background:var(--bg3);color:var(--text3);text-align:left;padding:8px 11px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--border);}
+  .info-table td{padding:8px 11px;border:1px solid var(--border);color:var(--text2);vertical-align:top;line-height:1.5;}
+  .info-table tr:hover td{background:var(--bg2);}
+  .td-green{color:var(--green)!important;}
+  .td-red{color:var(--coral)!important;}
+  .td-amber{color:var(--amber)!important;}
+  .completion-screen{display:none;text-align:center;padding:60px 20px;}
+  .completion-screen.active{display:block;}
+  .completion-icon{font-size:56px;margin-bottom:18px;}
+  .completion-screen h2{font-family:var(--sans);font-size:26px;color:#fff;margin-bottom:11px;}
+  .completion-screen p{color:var(--text2);font-size:13px;margin-bottom:22px;line-height:1.7;}
+  .restart-btn{padding:9px 20px;background:var(--bg2);border:1px solid var(--border2);color:var(--text2);border-radius:6px;font-family:var(--mono);font-size:12px;cursor:pointer;transition:all .15s;}
+  .restart-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .kbd{display:inline-flex;align-items:center;padding:1px 6px;background:var(--bg3);border:1px solid var(--border2);border-radius:3px;font-size:11px;color:var(--text2);}
+  .inline-code{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:11px;color:var(--teal);}
+  ::-webkit-scrollbar{width:5px;height:5px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ═══════════════════════ SIDEBAR ═══════════════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-top">
+      <a href="https://github.com/simon-liu-xin/claude-code-refactor-skill" target="_blank" class="logo-tag">Simon-Refactor-Skill v1.0</a>
+      <button class="lang-toggle" id="langToggle" onclick="toggleLang()">EN</button>
+    </div>
+    <h1 data-i18n="sidebar-title">Simon大型代码库<br>重构指南</h1>
+  </div>
+
+  <div class="sidebar-progress">
+    <div class="progress-label" data-i18n="progress-label">总进度</div>
+    <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressBar" style="width:0%"></div></div>
+    <div class="progress-count"><span id="doneCount">0</span>&nbsp;<span data-i18n="progress-sep">/ 12 步骤已完成</span></div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label" data-i18n="nav-sec-0">准备阶段</div>
+    <div class="nav-item active" data-step="0" onclick="goToStep(0)">
+      <div class="nav-step-num" id="nav-num-0">1</div>
+      <div class="nav-step-title" data-i18n="nav-0">环境配置 &amp; 模型选择</div>
+    </div>
+    <div class="nav-item" data-step="1" onclick="goToStep(1)">
+      <div class="nav-step-num" id="nav-num-1">2</div>
+      <div class="nav-step-title" data-i18n="nav-1">CLAUDE.md 初始化</div>
+    </div>
+    <div class="nav-item" data-step="2" onclick="goToStep(2)">
+      <div class="nav-step-num" id="nav-num-2">3</div>
+      <div class="nav-step-title" data-i18n="nav-2">子智能体配置</div>
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label" data-i18n="nav-sec-1">阶段一：探索分析</div>
+    <div class="nav-item" data-step="3" onclick="goToStep(3)">
+      <div class="nav-step-num" id="nav-num-3">4</div>
+      <div class="nav-step-title" data-i18n="nav-3">代码库全景扫描</div>
+    </div>
+    <div class="nav-item" data-step="4" onclick="goToStep(4)">
+      <div class="nav-step-num" id="nav-num-4">5</div>
+      <div class="nav-step-title" data-i18n="nav-4">技术债务评分</div>
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label" data-i18n="nav-sec-2">阶段二：测试防护网</div>
+    <div class="nav-item" data-step="5" onclick="goToStep(5)">
+      <div class="nav-step-num" id="nav-num-5">6</div>
+      <div class="nav-step-title" data-i18n="nav-5">生成特征化测试</div>
+    </div>
+    <div class="nav-item" data-step="6" onclick="goToStep(6)">
+      <div class="nav-step-num" id="nav-num-6">7</div>
+      <div class="nav-step-title" data-i18n="nav-6">验证 CI 门控</div>
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label" data-i18n="nav-sec-3">阶段三：批量重构</div>
+    <div class="nav-item" data-step="7" onclick="goToStep(7)">
+      <div class="nav-step-num" id="nav-num-7">8</div>
+      <div class="nav-step-title" data-i18n="nav-7">上下文窗口策略</div>
+    </div>
+    <div class="nav-item" data-step="8" onclick="goToStep(8)">
+      <div class="nav-step-num" id="nav-num-8">9</div>
+      <div class="nav-step-title" data-i18n="nav-8">单模块重构执行</div>
+    </div>
+    <div class="nav-item" data-step="9" onclick="goToStep(9)">
+      <div class="nav-step-num" id="nav-num-9">10</div>
+      <div class="nav-step-title" data-i18n="nav-9">并行重构策略</div>
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label" data-i18n="nav-sec-4">阶段四：验证治理</div>
+    <div class="nav-item" data-step="10" onclick="goToStep(10)">
+      <div class="nav-step-num" id="nav-num-10">11</div>
+      <div class="nav-step-title" data-i18n="nav-10">集成验证检查</div>
+    </div>
+    <div class="nav-item" data-step="11" onclick="goToStep(11)">
+      <div class="nav-step-num" id="nav-num-11">12</div>
+      <div class="nav-step-title" data-i18n="nav-11">持续治理配置</div>
+    </div>
+  </div>
+
+  <!-- Star button -->
+  <div class="sidebar-footer">
+    <a class="star-btn" href="https://github.com/simon-liu-xin/claude-code-refactor-skill" target="_blank">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="#fbbf24"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.872 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
+      <span data-i18n="star-label">Star on GitHub</span>
+      <span class="star-count" id="starCount">—</span>
+    </a>
+  </div>
+</aside>
+
+<!-- ═══════════════════════ MAIN ═══════════════════════ -->
+<main class="main" id="mainContent">
+
+<!-- ── Step 0 ── -->
+<div class="step-panel active" id="step-0">
+  <div class="step-header">
+    <div class="step-meta">
+      <span class="phase-badge" style="background:rgba(79,158,255,.12);color:var(--accent)" data-i18n="ph-setup">准备阶段</span>
+      <span class="step-counter" data-i18n="ctr-0">步骤 1 / 12</span>
+    </div>
+    <h2 data-i18n="s0-title">环境配置 &amp; 模型选择</h2>
+    <p class="step-desc" data-i18n="s0-desc">开始前确认 Claude Code 安装、版本及模型配置。对于 300 万行代码库，模型选择直接决定重构质量。</p>
+  </div>
+
+  <div class="goal-box" style="border-left-color:var(--accent)">
+    <span class="goal-icon">🎯</span>
+    <p><strong data-i18n="goal-label">本步骤目标：</strong><span data-i18n="s0-goal">确认 Claude Code 可用，选择合适模型，建立 Git 安全基线，确保后续所有操作有回滚保障。</span></p>
+  </div>
+
+  <div class="section">
+    <div class="section-title" data-i18n="s0-sec1">安装与验证</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-terminal">TERMINAL</span><span data-i18n="s0-p1-lbl">安装 Claude Code</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'install-cmd')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="install-cmd">npm install -g @anthropic-ai/claude-code
+
+# 验证安装
+claude --version
+
+# 进入项目目录
+cd /your/project/root
+
+# 启动 Claude Code
+claude</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title" data-i18n="s0-sec2">模型选择指南</div>
+    <table class="info-table">
+      <tr>
+        <th data-i18n="tbl-scale">代码库规模</th>
+        <th data-i18n="tbl-model">推荐模型</th>
+        <th data-i18n="tbl-ctx">上下文窗口</th>
+        <th data-i18n="tbl-use">适用场景</th>
+      </tr>
+      <tr>
+        <td data-i18n="tbl-s1">&lt; 10万行</td>
+        <td class="td-green">Sonnet 4.6</td>
+        <td>200K tokens</td>
+        <td data-i18n="tbl-u1">单模块重构，日常修改</td>
+      </tr>
+      <tr>
+        <td data-i18n="tbl-s2">10–100万行</td>
+        <td class="td-amber">Sonnet 4.6 + 分批</td>
+        <td>200K tokens</td>
+        <td data-i18n="tbl-u2">必须配合严格的分批策略</td>
+      </tr>
+      <tr>
+        <td data-i18n="tbl-s3">&gt; 100万行（当前）</td>
+        <td class="td-green">Opus 4.6（企业版）</td>
+        <td>100万 tokens</td>
+        <td data-i18n="tbl-u3">跨模块架构分析，最优选择</td>
+      </tr>
+    </table>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-terminal">TERMINAL</span><span data-i18n="s0-p2-lbl">切换模型（Claude Code 内）</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'model-cmd')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="model-cmd"># 在 Claude Code 会话中切换模型
+/model opus    # 使用 Opus 4.6（企业版推荐）
+/model sonnet  # 使用 Sonnet 4.6（预算有限时）</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title" data-i18n="s0-sec3">Git 安全基线</div>
+    <div class="alert info"><span class="alert-icon">ℹ</span><span data-i18n="s0-alert1">每一步重构前必须确保 Git 状态干净，所有工作在独立分支进行。这是可以无损回滚的唯一保障。</span></div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-terminal">TERMINAL</span><span data-i18n="s0-p3-lbl">建立安全基线</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'git-setup')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="git-setup"># 确认当前状态干净
+git status
+
+# 创建重构基础标签（随时可以回到这里）
+git tag refactor-baseline-$(date +%Y%m%d)
+
+# 创建重构主分支
+git checkout -b refactor/main
+
+# 推送到远程
+git push origin refactor/main</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title" data-i18n="checklist-title">完成检查</div>
+    <div class="checklist">
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s0-c1">Claude Code 已安装并可正常启动（<span class="inline-code">claude --version</span> 有输出）</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s0-c2">已确认使用模型：Opus 4.6 企业版 / Sonnet 4.6（根据预算选择）</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s0-c3">Git 状态干净，已创建 <span class="inline-code">refactor-baseline</span> 标签</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s0-c4">已切换到独立的 <span class="inline-code">refactor/main</span> 分支</div></div>
+    </div>
+  </div>
+
+  <div class="step-nav">
+    <button class="nav-btn" disabled data-i18n="btn-prev">← 上一步</button>
+    <button class="complete-btn" id="complete-0" onclick="markDone(0)" data-i18n-done="0">✓ 标记完成</button>
+    <button class="nav-btn primary" onclick="goToStep(1)" data-i18n="btn-next">下一步 →</button>
+  </div>
+</div>
+
+<!-- ── Step 1 ── -->
+<div class="step-panel" id="step-1">
+  <div class="step-header">
+    <div class="step-meta">
+      <span class="phase-badge" style="background:rgba(79,158,255,.12);color:var(--accent)" data-i18n="ph-setup">准备阶段</span>
+      <span class="step-counter" data-i18n="ctr-1">步骤 2 / 12</span>
+    </div>
+    <h2 data-i18n="s1-title">CLAUDE.md 初始化</h2>
+    <p class="step-desc" data-i18n="s1-desc">CLAUDE.md 是整个重构过程的"大脑"。它在每次会话开始时自动加载，消除了重复解释代码库结构的需要，是最重要的配置文件。</p>
+  </div>
+  <div class="goal-box" style="border-left-color:var(--purple)">
+    <span class="goal-icon">📄</span>
+    <p><strong data-i18n="goal-label">本步骤目标：</strong><span data-i18n="s1-goal">创建包含完整项目上下文的 CLAUDE.md，让每次会话都能在正确的认知基础上开始工作。</span></p>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s1-sec1">第一步：让 Claude Code 分析项目结构</div>
+    <div class="alert info"><span class="alert-icon">ℹ</span><span data-i18n="s1-alert1">先让 Claude 自动分析，再手动补充业务上下文。不要完全手写，效率太低。</span></div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-claude">CLAUDE CODE</span><span data-i18n="s1-p1-lbl">自动生成 CLAUDE.md 草稿</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'claude-md-gen')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="claude-md-gen">分析当前项目结构，为我生成一个 CLAUDE.md 草稿文件。
+
+要求包含以下内容：
+1. 项目技术栈（语言、主要框架、运行时版本）
+2. 目录结构概览（只到两级，不要太细）
+3. 构建命令、测试命令、代码风格检查命令
+4. 主要模块列表（列出 src/ 下的主要子目录及其职责描述）
+
+不要修改任何代码，只生成 CLAUDE.md 文件。</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s1-sec2">第二步：手动补充关键业务信息</div>
+    <p class="step-desc" style="margin-bottom:11px" data-i18n="s1-manual-hint">在 Claude 生成的草稿基础上，添加只有你知道的信息：</p>
+    <div class="config-block">
+      <div class="config-header">
+        <div class="config-filename">📄 CLAUDE.md — <span data-i18n="s1-tpl-lbl">必须手动补充的部分</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'claude-md-manual')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="claude-md-manual"># ⚠️ 禁止触碰区域（不得修改）
+- `/legacy/core/critical_path.*` — 生产关键路径
+- `/db/migrations/` — 只能添加，不能修改已有文件
+- `/config/production.*` — 生产环境配置
+
+# 重构优先级
+## 高优先级（先做）
+- [ ] /auth/token.js — 安全漏洞，圈复杂度 22
+- [ ] /payment/processor.js — 无测试，6年无人维护
+
+## 中优先级
+- [ ] /user/service.js — 重复代码严重
+- [ ] /api/routes.js — 路由层职责混乱
+
+## 低优先级（最后做）
+- [ ] /utils/ — 工具函数，风险低
+
+# 重构规范（每次会话必须遵守）
+1. 每修改一个文件，立即运行该文件的测试
+2. 不确定业务逻辑时，停下来提问，不要猜测
+3. 保持外部接口不变（函数签名、API 路径）
+4. 每个功能点完成后 git commit 一次
+
+# 当前已知的坑
+- auth 模块依赖一个未文档化的全局变量 `__LEGACY_SESSION`
+- payment 模块有循环依赖问题（payment → order → payment）
+- 所有日期处理都用了废弃的 moment.js，迁移到 dayjs</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s1-sec3">第三步：验证 CLAUDE.md 被正确加载</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-claude">CLAUDE CODE</span><span data-i18n="s1-p2-lbl">验证提示词</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'claude-md-verify')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="claude-md-verify">根据 CLAUDE.md，告诉我：
+1. 本项目的技术栈是什么？
+2. 哪些目录是禁止修改的？
+3. 当前重构的最高优先级模块是哪个？
+
+不要读取其他文件，只基于 CLAUDE.md 回答。</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="checklist-title">完成检查</div>
+    <div class="checklist">
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s1-c1">CLAUDE.md 已在项目根目录创建</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s1-c2">已补充禁止触碰区域、重构优先级、已知的坑</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s1-c3">验证 Claude Code 能正确读取并理解 CLAUDE.md 内容</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s1-c4">CLAUDE.md 已提交到 Git</div></div>
+    </div>
+  </div>
+  <div class="step-nav">
+    <button class="nav-btn" onclick="goToStep(0)" data-i18n="btn-prev">← 上一步</button>
+    <button class="complete-btn" id="complete-1" onclick="markDone(1)" data-i18n-done="1">✓ 标记完成</button>
+    <button class="nav-btn primary" onclick="goToStep(2)" data-i18n="btn-next">下一步 →</button>
+  </div>
+</div>
+
+<!-- ── Step 2 ── -->
+<div class="step-panel" id="step-2">
+  <div class="step-header">
+    <div class="step-meta">
+      <span class="phase-badge" style="background:rgba(79,158,255,.12);color:var(--accent)" data-i18n="ph-setup">准备阶段</span>
+      <span class="step-counter" data-i18n="ctr-2">步骤 3 / 12</span>
+    </div>
+    <h2 data-i18n="s2-title">子智能体配置</h2>
+    <p class="step-desc" data-i18n="s2-desc">子智能体在独立上下文中运行，是应对 300 万行代码库最关键的上下文管理工具。它们探索代码、读取文件，完成后只向主会话报告摘要，保持主会话干净。</p>
+  </div>
+  <div class="goal-box" style="border-left-color:var(--teal)">
+    <span class="goal-icon">🤖</span>
+    <p><strong data-i18n="goal-label">本步骤目标：</strong><span data-i18n="s2-goal">创建可复用的子智能体配置，用于探索、重构和验证三类任务，避免大量文件读取污染主会话上下文。</span></p>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s2-sec1">创建目录结构</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-terminal">TERMINAL</span><span data-i18n="s2-p1-lbl">创建子智能体目录</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'agent-dir')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="agent-dir">mkdir -p .claude/agents</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s2-sec2">子智能体 1：模块探索</div>
+    <div class="config-block">
+      <div class="config-header">
+        <div class="config-filename">📄 .claude/agents/explore-module.md</div>
+        <button class="copy-btn" onclick="copyPrompt(this,'agent-explore')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="agent-explore">---
+name: explore-module
+description: 探索指定模块，生成分析报告，不修改任何文件
+---
+接收模块路径作为参数，执行以下分析：
+
+1. 列出模块内所有文件及行数
+2. 识别主要依赖关系（import/require 分析）
+3. 找出复杂度最高的前5个函数（估算圈复杂度）
+4. 识别重复代码块（超过10行的相似代码）
+5. 统计测试覆盖率（如果有测试文件）
+6. 列出所有对外暴露的接口（exports）
+
+输出格式：简洁的 Markdown 报告，总结关键问题，不输出完整代码。
+禁止修改任何文件。</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s2-sec3">子智能体 2：安全重构执行器</div>
+    <div class="config-block">
+      <div class="config-header">
+        <div class="config-filename">📄 .claude/agents/refactor-safe.md</div>
+        <button class="copy-btn" onclick="copyPrompt(this,'agent-refactor')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="agent-refactor">---
+name: refactor-safe
+description: 对单个文件执行安全重构，每步运行测试验证
+---
+接收文件路径和重构目标作为参数，执行以下流程：
+
+1. 读取文件，理解当前实现
+2. 检查是否有对应测试文件
+3. 如果没有测试，先生成特征化测试并运行通过
+4. 执行重构（一次只改一件事）
+5. 运行测试，确认全部通过
+6. 如果测试失败，回滚变更并报告原因
+7. 输出变更摘要（改了什么，为什么这么改）
+
+规范约束：
+- 保持函数外部签名不变
+- 每次重构只针对一个问题（复杂度/重复/命名）
+- 遇到不确定的业务逻辑，停止并说明疑问</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s2-sec4">子智能体 3：质量验证器</div>
+    <div class="config-block">
+      <div class="config-header">
+        <div class="config-filename">📄 .claude/agents/verify-quality.md</div>
+        <button class="copy-btn" onclick="copyPrompt(this,'agent-verify')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="agent-verify">---
+name: verify-quality
+description: 对已重构的模块进行质量验证
+---
+接收模块路径作为参数，执行以下验证：
+
+1. 运行所有测试（单元测试 + 特征化测试），汇报通过率
+2. 运行 linter，列出新增的 warning（与 main 分支对比）
+3. 检查函数长度：找出仍然超过50行的函数
+4. 检查圈复杂度：找出仍然超过10的函数
+5. 检查是否有硬编码的魔法数字或字符串
+6. 输出通过/失败摘要表格，不输出完整代码
+
+判断标准：
+- ✅ 所有测试通过
+- ✅ 无新增 linter 错误
+- ⚠️ 有新增 warning（可接受但需说明）
+- ❌ 有测试失败（必须修复后才能继续）</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s2-sec5">验证子智能体配置</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-claude">CLAUDE CODE</span><span data-i18n="s2-p2-lbl">测试子智能体</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'agent-test')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="agent-test">使用 explore-module 子智能体，分析 src/ 目录下最大的那个子模块。
+只输出分析报告摘要，不要读取项目中的其他文件。</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="checklist-title">完成检查</div>
+    <div class="checklist">
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s2-c1">已创建 <span class="inline-code">.claude/agents/</span> 目录</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s2-c2">三个子智能体配置文件均已创建</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s2-c3">测试调用 explore-module 子智能体成功，主会话上下文保持干净</div></div>
+    </div>
+  </div>
+  <div class="step-nav">
+    <button class="nav-btn" onclick="goToStep(1)" data-i18n="btn-prev">← 上一步</button>
+    <button class="complete-btn" id="complete-2" onclick="markDone(2)" data-i18n-done="2">✓ 标记完成</button>
+    <button class="nav-btn primary" onclick="goToStep(3)" data-i18n="btn-next">下一步 →</button>
+  </div>
+</div>
+
+<!-- ── Step 3 ── -->
+<div class="step-panel" id="step-3">
+  <div class="step-header">
+    <div class="step-meta">
+      <span class="phase-badge" style="background:rgba(45,212,191,.12);color:var(--teal)" data-i18n="ph-p1">阶段一：探索分析</span>
+      <span class="step-counter" data-i18n="ctr-3">步骤 4 / 12</span>
+    </div>
+    <h2 data-i18n="s3-title">代码库全景扫描</h2>
+    <p class="step-desc" data-i18n="s3-desc">在不修改任何代码的情况下，对整个代码库进行深度分析，建立重构所需的全局认知。这一步是后续所有决策的基础。</p>
+  </div>
+  <div class="alert warn"><span class="alert-icon">⚠</span><span data-i18n="s3-alert1">本步骤严禁修改任何代码文件。所有操作必须是只读分析。如果 Claude Code 试图修改文件，立即用 <kbd class="kbd">Esc</kbd> 取消。</span></div>
+  <div class="goal-box" style="border-left-color:var(--teal)">
+    <span class="goal-icon">🗺️</span>
+    <p><strong data-i18n="goal-label">本步骤目标：</strong><span data-i18n="s3-goal">生成 REFACTOR_PLAN.md，包含模块地图、依赖关系、测试覆盖率现状和过期依赖清单。</span></p>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s3-sec1">全景扫描提示词</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-claude">CLAUDE CODE</span><span data-i18n="s3-p1-lbl">主扫描命令（使用子智能体）</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'scan-main')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="scan-main">使用子智能体并行探索以下四个维度，不要修改任何文件，禁止执行写入操作：
+
+子智能体1 - 结构分析：
+- 列出 src/ 下所有模块（目录），每个模块的文件数量和总行数
+- 识别明显的架构模式（MVC/分层/领域驱动）
+
+子智能体2 - 复杂度热点：
+- 找出行数最多的前20个文件
+- 识别函数超过100行的文件
+- 找出有明显重复代码的模块
+
+子智能体3 - 测试覆盖：
+- 统计有测试文件的模块 vs 没有测试的模块
+- 列出完全没有测试的核心模块
+
+子智能体4 - 依赖健康：
+- 读取 package.json / requirements.txt / pom.xml
+- 列出超过3年未更新的依赖
+- 识别已知安全漏洞的依赖版本
+
+所有结果汇总输出为 REFACTOR_PLAN.md 文件。</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s3-sec2">补充：深度分析特定区域</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-claude">CLAUDE CODE</span><span data-i18n="s3-p2-lbl">针对可疑模块深挖</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'scan-deep')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="scan-deep">使用 explore-module 子智能体，深度分析 [替换为你的高风险模块路径]。
+
+重点关注：
+1. 这个模块被哪些其他模块依赖？（被依赖越多，重构风险越高）
+2. 有没有循环依赖？
+3. 有没有全局状态或单例？（这些最难重构）
+4. 外部接口有多少个？（接口越多，需要保持兼容的约束越多）
+
+不要修改任何文件，只输出分析报告。</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="checklist-title">完成检查</div>
+    <div class="checklist">
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s3-c1">REFACTOR_PLAN.md 已生成，包含模块地图和复杂度热点</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s3-c2">已识别无测试覆盖的核心模块（高风险区域）</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s3-c3">过期依赖清单已整理</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s3-c4">整个分析过程没有修改任何代码文件（git status 干净）</div></div>
+    </div>
+  </div>
+  <div class="step-nav">
+    <button class="nav-btn" onclick="goToStep(2)" data-i18n="btn-prev">← 上一步</button>
+    <button class="complete-btn" id="complete-3" onclick="markDone(3)" data-i18n-done="3">✓ 标记完成</button>
+    <button class="nav-btn primary" onclick="goToStep(4)" data-i18n="btn-next">下一步 →</button>
+  </div>
+</div>
+
+<!-- ── Step 4 ── -->
+<div class="step-panel" id="step-4">
+  <div class="step-header">
+    <div class="step-meta">
+      <span class="phase-badge" style="background:rgba(45,212,191,.12);color:var(--teal)" data-i18n="ph-p1">阶段一：探索分析</span>
+      <span class="step-counter" data-i18n="ctr-4">步骤 5 / 12</span>
+    </div>
+    <h2 data-i18n="s4-title">技术债务评分</h2>
+    <p class="step-desc" data-i18n="s4-desc">基于扫描结果，对每个模块进行量化评分，确定重构顺序。避免凭直觉决定先做什么——数据说话。</p>
+  </div>
+  <div class="goal-box" style="border-left-color:var(--amber)">
+    <span class="goal-icon">📊</span>
+    <p><strong data-i18n="goal-label">本步骤目标：</strong><span data-i18n="s4-goal">生成模块优先级排名表，确定未来几个月的重构顺序。优先选择高风险、低难度的模块。</span></p>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s4-sec1">评分提示词</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-claude">CLAUDE CODE</span><span data-i18n="s4-p1-lbl">生成技术债务评分表</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'debt-score')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="debt-score">基于 REFACTOR_PLAN.md 中的分析结果，对每个模块进行技术债务评分。
+
+评分维度（各1-5分）：
+- 安全风险：有无已知漏洞、权限绕过可能性
+- 维护成本：代码复杂度、文档缺失程度、理解难度
+- 业务影响：该模块故障对用户的影响范围
+- 重构难度：依赖数量、测试覆盖率、接口复杂度
+
+计算优先级分数 = (安全风险 + 维护成本 + 业务影响) / 重构难度
+分数越高 = 越应该先做
+
+以 CSV 格式输出结果：
+模块路径,安全风险,维护成本,业务影响,重构难度,优先级分数,建议处理顺序
+
+同时给出文字建议：
+- 应该立即处理的前3个模块（原因）
+- 暂时跳过的模块（原因）
+- 需要特别注意的风险点</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s4-sec2">优先级决策规则</div>
+    <table class="info-table">
+      <tr><th data-i18n="tbl-situation">情况</th><th data-i18n="tbl-decision">决策</th><th data-i18n="tbl-reason">理由</th></tr>
+      <tr><td class="td-green" data-i18n="s4-t1a">高风险 + 低难度</td><td class="td-green" data-i18n="s4-t1b">✅ 立即处理</td><td data-i18n="s4-t1c">最高性价比，快速降低整体风险</td></tr>
+      <tr><td class="td-amber" data-i18n="s4-t2a">高风险 + 高难度</td><td class="td-amber" data-i18n="s4-t2b">⚠️ 计划处理</td><td data-i18n="s4-t2c">需要专项项目，单独立项</td></tr>
+      <tr><td data-i18n="s4-t3a">低风险 + 低难度</td><td data-i18n="s4-t3b">📅 排期处理</td><td data-i18n="s4-t3c">可批量处理，放入常规迭代</td></tr>
+      <tr><td class="td-red" data-i18n="s4-t4a">低风险 + 高难度</td><td class="td-red" data-i18n="s4-t4b">❌ 暂时跳过</td><td data-i18n="s4-t4c">投入产出比最低，暂缓</td></tr>
+    </table>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="checklist-title">完成检查</div>
+    <div class="checklist">
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s4-c1">所有模块已完成评分，评分表已保存</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s4-c2">已确定前5个优先处理的模块</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s4-c3">REFACTOR_PLAN.md 已更新优先级信息，并提交到 Git</div></div>
+    </div>
+  </div>
+  <div class="step-nav">
+    <button class="nav-btn" onclick="goToStep(3)" data-i18n="btn-prev">← 上一步</button>
+    <button class="complete-btn" id="complete-4" onclick="markDone(4)" data-i18n-done="4">✓ 标记完成</button>
+    <button class="nav-btn primary" onclick="goToStep(5)" data-i18n="btn-next">下一步 →</button>
+  </div>
+</div>
+
+<!-- ── Step 5 ── -->
+<div class="step-panel" id="step-5">
+  <div class="step-header">
+    <div class="step-meta">
+      <span class="phase-badge" style="background:rgba(167,139,250,.12);color:var(--purple)" data-i18n="ph-p2">阶段二：测试防护网</span>
+      <span class="step-counter" data-i18n="ctr-5">步骤 6 / 12</span>
+    </div>
+    <h2 data-i18n="s5-title">生成特征化测试</h2>
+    <p class="step-desc" data-i18n="s5-desc">特征化测试是重构的"安全气囊"。它们记录代码当前的实际行为（不管好坏），如果重构意外改变了行为，测试会立即报警。这是触碰代码前必须完成的工作。</p>
+  </div>
+  <div class="alert warn"><span class="alert-icon">⚠</span><span data-i18n="s5-alert1"><strong>注意：</strong>特征化测试不验证"正确性"，只验证"一致性"。即使当前代码有 bug，测试也要记录这个 bug 的行为——重构完成后行为应该保持不变。</span></div>
+  <div class="goal-box" style="border-left-color:var(--purple)">
+    <span class="goal-icon">🛡️</span>
+    <p><strong data-i18n="goal-label">本步骤目标：</strong><span data-i18n="s5-goal">为优先级最高的模块生成完整的特征化测试，确保测试全部通过，然后才能开始修改代码。</span></p>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s5-sec1">为单个模块生成特征化测试</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-claude">CLAUDE CODE</span><span data-i18n="s5-p1-lbl">特征化测试生成（按模块执行）</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'char-test')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="char-test">为 [替换为模块路径，如 src/services/PaymentService.js] 的所有公共方法生成特征化测试。
+
+测试规范：
+1. 测试目标是记录当前行为，不是验证正确性
+2. 每个公共方法至少需要以下测试用例：
+   - 正常输入的正常路径
+   - null / undefined 输入
+   - 空字符串 / 空数组 / 0 等边界值
+   - 预期会抛出异常的情况
+3. 测试文件命名：在原文件名后加 .characterization.test.js
+4. 使用现有的测试框架（查看 package.json 确认）
+5. 每个测试加上注释：// CHARACTERIZATION: 记录当前行为
+
+生成测试后，立即运行测试确认全部通过。
+如果发现测试无法通过（说明当前代码本身有问题），
+停止并向我报告，不要自动修复。</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s5-sec2">批量生成测试（多个无测试模块）</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-claude">CLAUDE CODE</span><span data-i18n="s5-p2-lbl">批量特征化测试</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'char-test-batch')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="char-test-batch">使用并行子智能体，为以下模块分别生成特征化测试：
+（每个子智能体处理一个模块，互不干扰）
+
+- src/services/UserService.js
+- src/utils/DateHelper.js
+- src/middleware/AuthMiddleware.js
+
+每个子智能体完成后汇报：
+- 生成了多少个测试用例
+- 测试运行结果（通过/失败数量）
+- 是否发现了当前代码的 bug（测试无法通过的情况）
+
+最终汇总报告：哪些模块已有完整测试防护网，可以开始重构。</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="checklist-title">完成检查</div>
+    <div class="checklist">
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s5-c1">所有待重构模块都有特征化测试文件（*.characterization.test.*）</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s5-c2">所有特征化测试均通过（运行 <span class="inline-code">npm test</span> 确认）</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s5-c3">测试文件已提交到 Git（作为重构前的基准快照）</div></div>
+    </div>
+  </div>
+  <div class="step-nav">
+    <button class="nav-btn" onclick="goToStep(4)" data-i18n="btn-prev">← 上一步</button>
+    <button class="complete-btn" id="complete-5" onclick="markDone(5)" data-i18n-done="5">✓ 标记完成</button>
+    <button class="nav-btn primary" onclick="goToStep(6)" data-i18n="btn-next">下一步 →</button>
+  </div>
+</div>
+
+<!-- ── Step 6 ── -->
+<div class="step-panel" id="step-6">
+  <div class="step-header">
+    <div class="step-meta">
+      <span class="phase-badge" style="background:rgba(167,139,250,.12);color:var(--purple)" data-i18n="ph-p2">阶段二：测试防护网</span>
+      <span class="step-counter" data-i18n="ctr-6">步骤 7 / 12</span>
+    </div>
+    <h2 data-i18n="s6-title">验证 CI 门控</h2>
+    <p class="step-desc" data-i18n="s6-desc">测试防护网需要 CI 自动化来保证每次提交都运行验证。手动运行测试很容易遗漏——CI 不会。</p>
+  </div>
+  <div class="goal-box" style="border-left-color:var(--green)">
+    <span class="goal-icon">🚦</span>
+    <p><strong data-i18n="goal-label">本步骤目标：</strong><span data-i18n="s6-goal">确保 CI 流水线正确运行特征化测试，并配置失败时阻止合并。这是整个重构过程的自动护栏。</span></p>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s6-sec1">生成 CI 配置</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-claude">CLAUDE CODE</span><span data-i18n="s6-p1-lbl">生成 CI 流水线</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'ci-gen')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="ci-gen">为本项目生成 CI 配置文件，用于在每次 Push 时自动验证重构质量。
+
+要求：
+1. 运行所有单元测试（包括 .characterization.test.* 文件）
+2. 运行 linter，发现错误时 CI 失败
+3. 检查是否有新增的函数超过50行（警告，不失败）
+4. 输出测试覆盖率报告
+
+根据项目实际使用的 CI 系统生成配置：
+- 如果是 GitHub Actions：生成 .github/workflows/refactor-guard.yml
+- 如果是 GitLab CI：生成 .gitlab-ci.yml 中的相应 job
+- 如果是 Jenkins：生成 Jenkinsfile 片段
+
+生成后告诉我如何验证 CI 配置是否正确。</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="checklist-title">完成检查</div>
+    <div class="checklist">
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s6-c1">CI 配置文件已创建并提交</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s6-c2">CI 已成功运行一次（所有测试通过的绿色状态）</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s6-c3">已确认：测试失败会阻止 PR 合并</div></div>
+    </div>
+  </div>
+  <div class="step-nav">
+    <button class="nav-btn" onclick="goToStep(5)" data-i18n="btn-prev">← 上一步</button>
+    <button class="complete-btn" id="complete-6" onclick="markDone(6)" data-i18n-done="6">✓ 标记完成</button>
+    <button class="nav-btn primary" onclick="goToStep(7)" data-i18n="btn-next">下一步 →</button>
+  </div>
+</div>
+
+<!-- ── Step 7 ── -->
+<div class="step-panel" id="step-7">
+  <div class="step-header">
+    <div class="step-meta">
+      <span class="phase-badge" style="background:rgba(79,158,255,.12);color:var(--accent)" data-i18n="ph-p3">阶段三：批量重构</span>
+      <span class="step-counter" data-i18n="ctr-7">步骤 8 / 12</span>
+    </div>
+    <h2 data-i18n="s7-title">上下文窗口策略</h2>
+    <p class="step-desc" data-i18n="s7-desc">上下文窗口是重构过程中最重要的资源。学会主动管理它，而不是被动等待它耗尽。</p>
+  </div>
+  <div class="goal-box" style="border-left-color:var(--accent)">
+    <span class="goal-icon">🧠</span>
+    <p><strong data-i18n="goal-label">本步骤目标：</strong><span data-i18n="s7-goal">掌握上下文管理的三个核心命令，建立每次会话的标准操作流程，避免上下文耗尽导致的错误。</span></p>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s7-sec1">核心命令速查</div>
+    <table class="info-table">
+      <tr><th data-i18n="tbl-cmd">命令</th><th data-i18n="tbl-effect">作用</th><th data-i18n="tbl-when">使用时机</th></tr>
+      <tr><td><span class="inline-code">/compact</span></td><td data-i18n="s7-t1b">压缩历史，保留关键信息</td><td data-i18n="s7-t1c">完成一个文件后；感觉响应变慢时</td></tr>
+      <tr><td><span class="inline-code">/clear</span></td><td data-i18n="s7-t2b">彻底清空上下文</td><td data-i18n="s7-t2c">切换到完全不同的任务时</td></tr>
+      <tr><td><span class="inline-code">/status</span></td><td data-i18n="s7-t3b">查看当前上下文使用量</td><td data-i18n="s7-t3c">随时查看，接近80%时主动压缩</td></tr>
+    </table>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s7-sec2">每次重构会话的标准流程</div>
+    <div class="config-block">
+      <div class="config-header"><div class="config-filename">📋 <span data-i18n="s7-sop-title">标准会话 SOP（每次执行重构前阅读）</span></div></div>
+      <div class="prompt-body">开始前：
+  1. 新建一个 Git feature 分支
+     git checkout -b refactor/[模块名]-[日期]
+  2. 确认上下文干净（如果是新任务，先 /clear）
+  3. 明确本次会话只做一件事
+
+执行中：
+  4. 每完成一个文件 → 运行测试 → git commit
+  5. 感觉上下文超过 60% → 主动 /compact
+  6. 遇到不确定 → 停下来问，不要让 Claude 猜
+
+结束时：
+  7. 运行完整测试套件，确认通过
+  8. 开 PR，让 CI 跑验证
+  9. /clear 准备下一个任务</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s7-sec3">会话开始的标准提示词</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-claude">CLAUDE CODE</span><span data-i18n="s7-p1-lbl">每次会话开始时发送</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'session-start')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="session-start">本次会话目标（只做这一件事）：
+重构 [替换为具体文件路径]
+
+约束：
+- 保持所有公共接口不变
+- 每修改完一个函数立即运行测试
+- 遇到不确定的业务逻辑，停下来告诉我，不要猜
+- 不要读取 CLAUDE.md 以外的配置文件（除非必要）
+
+开始前，先告诉我：
+1. 你打算如何分步骤进行？
+2. 有什么需要我确认的前提条件？</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="checklist-title">完成检查</div>
+    <div class="checklist">
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s7-c1">已理解 /compact 和 /clear 的使用时机</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s7-c2">已记住会话 SOP（开始/执行/结束三个阶段）</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s7-c3">已准备好第一个重构目标（来自优先级表）</div></div>
+    </div>
+  </div>
+  <div class="step-nav">
+    <button class="nav-btn" onclick="goToStep(6)" data-i18n="btn-prev">← 上一步</button>
+    <button class="complete-btn" id="complete-7" onclick="markDone(7)" data-i18n-done="7">✓ 标记完成</button>
+    <button class="nav-btn primary" onclick="goToStep(8)" data-i18n="btn-next">下一步 →</button>
+  </div>
+</div>
+
+<!-- ── Step 8 ── -->
+<div class="step-panel" id="step-8">
+  <div class="step-header">
+    <div class="step-meta">
+      <span class="phase-badge" style="background:rgba(79,158,255,.12);color:var(--accent)" data-i18n="ph-p3">阶段三：批量重构</span>
+      <span class="step-counter" data-i18n="ctr-8">步骤 9 / 12</span>
+    </div>
+    <h2 data-i18n="s8-title">单模块重构执行</h2>
+    <p class="step-desc" data-i18n="s8-desc">这是真正动刀的阶段。每次只重构一个模块（5-20个文件），配合测试验证，逐步推进。以下是针对最常见重构类型的专用提示词。</p>
+  </div>
+  <div class="goal-box" style="border-left-color:var(--green)">
+    <span class="goal-icon">⚙️</span>
+    <p><strong data-i18n="goal-label">本步骤目标：</strong><span data-i18n="s8-goal">完成第一个高优先级模块的重构，建立可重复的执行模式，为后续批量重构奠定基础。</span></p>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s8-sec1">类型1：降低圈复杂度</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-claude">CLAUDE CODE</span><span data-i18n="s8-p1-lbl">复杂函数拆分</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'refactor-complexity')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="refactor-complexity">分析 [文件路径] 中的函数，找出圈复杂度最高的那个。
+
+执行步骤：
+1. 展示该函数及其当前复杂度（不要展示其他部分）
+2. 提出拆分方案（展示拆分后的函数签名列表，等我确认）
+3. 确认后执行重构，每个子函数拆出后立即运行测试
+4. 完成后对比：原函数复杂度 → 重构后最高复杂度
+
+约束：
+- 拆出的子函数如果不需要对外暴露，设为 private/不导出
+- 保持主函数的对外签名完全不变
+- 如果需要跨文件提取公共函数，先告诉我，不要自动执行</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s8-sec2">类型2：消除重复代码</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-claude">CLAUDE CODE</span><span data-i18n="s8-p2-lbl">DRY 重构</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'refactor-dry')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="refactor-dry">分析 [模块目录路径] 内的重复代码。
+
+执行步骤：
+1. 列出所有重复超过10行的代码块（显示文件名和行号，不显示代码）
+2. 按重复频率排序，找出最值得提取的前3个
+3. 对最高优先级的重复块，提出提取方案：
+   - 提取到哪个文件？（已有的 utils 还是新建文件？）
+   - 函数签名是什么？
+   - 等我确认后再执行
+
+执行时：
+- 一次只提取一个重复块
+- 提取后在所有使用处替换引用
+- 运行测试确认通过
+- 提交 git，然后继续下一个</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s8-sec3">类型3：现代化语法升级</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-claude">CLAUDE CODE</span><span data-i18n="s8-p3-lbl">回调转 async/await</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'refactor-async')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="refactor-async">将 [文件路径] 中所有使用回调（callback）的函数迁移到 async/await 模式。
+
+执行规范：
+1. 先列出需要迁移的函数列表，等我确认
+2. 逐个函数迁移（一次只改一个函数）
+3. 每个函数迁移后立即运行测试
+4. 如果该函数被其他文件调用，检查调用方是否需要同步修改
+
+注意事项：
+- 保持函数错误处理逻辑完整（callback 的 err 参数要转换为 try/catch）
+- 如果调用方是外部接口（API endpoint），迁移时保持向后兼容
+- 不要一次性重写整个文件，逐函数进行</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s8-sec4">类型4：Strangler Fig 模式（大型迁移）</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-claude">CLAUDE CODE</span><span data-i18n="s8-p4-lbl">渐进式架构迁移</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'refactor-strangler')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="refactor-strangler">为 [单体服务/模块名] 设计渐进式迁移计划（Strangler Fig 模式）。
+
+只输出迁移计划，不执行任何代码修改：
+
+计划要包含：
+1. 阶段划分（每个阶段的目标和可验证的完成条件）
+2. 每个阶段影响的文件范围
+3. 引入路由/适配层的时机和方式
+4. 如何在迁移过程中保持旧系统继续运行
+5. 回滚计划（每个阶段失败时如何回退）
+6. 预估每个阶段需要重构的文件数量
+
+输出计划后等我确认，再逐阶段执行。</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s8-sec5">完成检查（每个模块重构后执行）</div>
+    <div class="checklist">
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s8-c1">重构前：git 状态干净，在 feature 分支</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s8-c2">重构中：每个文件完成后立即运行测试并 commit</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s8-c3">重构后：所有特征化测试通过，无新增 lint 错误</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s8-c4">外部接口未发生变化（函数签名、API 路径均保持一致）</div></div>
+    </div>
+  </div>
+  <div class="step-nav">
+    <button class="nav-btn" onclick="goToStep(7)" data-i18n="btn-prev">← 上一步</button>
+    <button class="complete-btn" id="complete-8" onclick="markDone(8)" data-i18n-done="8">✓ 标记完成</button>
+    <button class="nav-btn primary" onclick="goToStep(9)" data-i18n="btn-next">下一步 →</button>
+  </div>
+</div>
+
+<!-- ── Step 9 ── -->
+<div class="step-panel" id="step-9">
+  <div class="step-header">
+    <div class="step-meta">
+      <span class="phase-badge" style="background:rgba(79,158,255,.12);color:var(--accent)" data-i18n="ph-p3">阶段三：批量重构</span>
+      <span class="step-counter" data-i18n="ctr-9">步骤 10 / 12</span>
+    </div>
+    <h2 data-i18n="s9-title">并行重构策略</h2>
+    <p class="step-desc" data-i18n="s9-desc">当单模块重构流程稳定后，使用 Git Worktrees + 多实例并行处理，将重构效率提升数倍。适合需要对多个独立模块同时推进的场景。</p>
+  </div>
+  <div class="goal-box" style="border-left-color:var(--coral)">
+    <span class="goal-icon">⚡</span>
+    <p><strong data-i18n="goal-label">本步骤目标：</strong><span data-i18n="s9-goal">建立并行重构工作流，同时推进多个不相互依赖的模块，大幅缩短整体重构时间线。</span></p>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s9-sec1">Git Worktrees 并行设置</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-terminal">TERMINAL</span><span data-i18n="s9-p1-lbl">建立并行工作区</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'worktree-setup')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="worktree-setup"># 为每个并行重构任务创建独立分支和工作目录
+# （在项目根目录的父目录执行）
+
+# 模块1：auth 重构
+git branch refactor/auth-20240115
+git worktree add ../project-auth refactor/auth-20240115
+
+# 模块2：payment 重构  
+git branch refactor/payment-20240115
+git worktree add ../project-payment refactor/payment-20240115
+
+# 模块3：user 重构
+git branch refactor/user-20240115
+git worktree add ../project-user refactor/user-20240115
+
+# 现在可以打开3个终端，每个目录启动独立的 Claude Code 实例
+# cd ../project-auth && claude
+# cd ../project-payment && claude
+# cd ../project-user && claude</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s9-sec2">大批量文件并行处理（/batch 命令）</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-claude">CLAUDE CODE</span><span data-i18n="s9-p2-lbl">批量替换废弃 API</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'batch-refactor')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="batch-refactor">使用并行子智能体，处理以下所有使用废弃 [函数名/API名] 的文件。
+
+每个子智能体独立处理一个文件，执行：
+1. 替换废弃调用为新 API：[旧调用格式] → [新调用格式]
+2. 更新对应的 import/require
+3. 运行该文件的测试，确认通过
+4. 报告：文件名 + 替换次数 + 测试状态
+
+文件列表：（从 REFACTOR_PLAN.md 中粘贴文件路径）
+- src/services/UserService.js
+- src/controllers/UserController.js
+- src/utils/UserHelper.js
+[继续列出...]
+
+所有子智能体完成后，汇总报告成功/失败数量。
+失败的文件列出具体原因，不要自动修复。</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s9-sec3">并行重构的适用条件</div>
+    <table class="info-table">
+      <tr><th data-i18n="tbl-condition">条件</th><th data-i18n="tbl-parallel">是否适合并行</th></tr>
+      <tr><td data-i18n="s9-t1a">两个模块之间没有互相依赖</td><td class="td-green" data-i18n="s9-t1b">✅ 适合并行</td></tr>
+      <tr><td data-i18n="s9-t2a">重构同一类问题（如替换废弃 API）</td><td class="td-green" data-i18n="s9-t2b">✅ 适合并行（/batch）</td></tr>
+      <tr><td data-i18n="s9-t3a">模块A 的重构结果会影响模块B</td><td class="td-red" data-i18n="s9-t3b">❌ 必须串行</td></tr>
+      <tr><td data-i18n="s9-t4a">共享工具函数需要同时修改</td><td class="td-amber" data-i18n="s9-t4b">⚠️ 谨慎并行，注意冲突</td></tr>
+    </table>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="checklist-title">完成检查</div>
+    <div class="checklist">
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s9-c1">已确认并行模块之间无依赖关系</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s9-c2">Worktrees 建立正常，各目录独立工作</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s9-c3">各并行分支最终 PR 依次合并（先后顺序），无合并冲突</div></div>
+    </div>
+  </div>
+  <div class="step-nav">
+    <button class="nav-btn" onclick="goToStep(8)" data-i18n="btn-prev">← 上一步</button>
+    <button class="complete-btn" id="complete-9" onclick="markDone(9)" data-i18n-done="9">✓ 标记完成</button>
+    <button class="nav-btn primary" onclick="goToStep(10)" data-i18n="btn-next">下一步 →</button>
+  </div>
+</div>
+
+<!-- ── Step 10 ── -->
+<div class="step-panel" id="step-10">
+  <div class="step-header">
+    <div class="step-meta">
+      <span class="phase-badge" style="background:rgba(34,197,94,.12);color:var(--green)" data-i18n="ph-p4">阶段四：验证治理</span>
+      <span class="step-counter" data-i18n="ctr-10">步骤 11 / 12</span>
+    </div>
+    <h2 data-i18n="s10-title">集成验证检查</h2>
+    <p class="step-desc" data-i18n="s10-desc">每完成一批模块重构后，进行系统级的集成验证。这不是单元测试——而是验证模块之间的协作依然正常工作。</p>
+  </div>
+  <div class="goal-box" style="border-left-color:var(--green)">
+    <span class="goal-icon">🔍</span>
+    <p><strong data-i18n="goal-label">本步骤目标：</strong><span data-i18n="s10-goal">确认本轮重构没有引入跨模块的回归问题，性能基准未下降，为下一轮重构建立新的基线。</span></p>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s10-sec1">集成验证提示词</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-claude">CLAUDE CODE</span><span data-i18n="s10-p1-lbl">完整集成验证（每批结束后执行）</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'integration-verify')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="integration-verify">对本轮重构的模块执行完整的集成验证。
+
+验证步骤：
+1. 运行所有测试（单元 + 集成 + 特征化），输出通过率
+2. 运行 linter，与 refactor-baseline 标签对比新增的 warning
+3. 对比 git diff（当前 vs refactor-baseline），统计：
+   - 修改的文件数量
+   - 删除的代码行数（应该是正数，代表代码减少）
+   - 新增的测试用例数量
+4. 检查接口兼容性：
+   - 所有对外暴露的函数签名是否与重构前一致
+   - 如有变化，列出所有变化点
+
+5. 生成质量对比报告：
+   格式：[模块名] | 重构前 | 重构后 | 变化
+   行数, 圈复杂度(最高), 测试数量, 测试覆盖率
+
+判断标准：
+✅ 所有测试通过 → 可以合并 PR
+⚠️ 有测试失败 → 列出失败原因，我来决定是否修复
+❌ 接口发生变化 → 必须修复，不允许合并</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s10-sec2">性能回归检查</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-claude">CLAUDE CODE</span><span data-i18n="s10-p2-lbl">性能基准对比</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'perf-verify')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="perf-verify">为本轮重构的核心功能路径运行性能基准测试。
+
+1. 识别性能敏感的函数（通常是：数据库查询包装、缓存层、高频调用的工具函数）
+2. 如果项目有 benchmark 工具，运行并对比重构前后
+3. 如果没有，用以下简单方式评估：
+   - 运行测试套件计时：time npm test（对比重构前后时间）
+   - 代码层面检查：重构后是否引入了不必要的额外函数调用层
+
+报告格式：
+- 性能无明显变化：✅ 正常
+- 性能下降 < 10%：⚠️ 说明原因
+- 性能下降 > 10%：❌ 需要优化后才能合并</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="checklist-title">完成检查</div>
+    <div class="checklist">
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s10-c1">所有测试通过（单元 + 集成 + 特征化）</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s10-c2">质量对比报告已生成，代码行数净减少</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s10-c3">所有外部接口签名未变化</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s10-c4">PR 已创建，CI 绿色，已合并到主分支</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s10-c5">更新 CLAUDE.md 中的优先级列表（已完成的划掉）</div></div>
+    </div>
+  </div>
+  <div class="step-nav">
+    <button class="nav-btn" onclick="goToStep(9)" data-i18n="btn-prev">← 上一步</button>
+    <button class="complete-btn" id="complete-10" onclick="markDone(10)" data-i18n-done="10">✓ 标记完成</button>
+    <button class="nav-btn primary" onclick="goToStep(11)" data-i18n="btn-next">下一步 →</button>
+  </div>
+</div>
+
+<!-- ── Step 11 ── -->
+<div class="step-panel" id="step-11">
+  <div class="step-header">
+    <div class="step-meta">
+      <span class="phase-badge" style="background:rgba(34,197,94,.12);color:var(--green)" data-i18n="ph-p4">阶段四：验证治理</span>
+      <span class="step-counter" data-i18n="ctr-11">步骤 12 / 12</span>
+    </div>
+    <h2 data-i18n="s11-title">持续治理配置</h2>
+    <p class="step-desc" data-i18n="s11-desc">重构不是一次性工程——遗留代码库的技术债务需要持续治理。配置自动化巡检，防止债务反弹，让 Claude Code 成为常驻的代码质量守卫。</p>
+  </div>
+  <div class="goal-box" style="border-left-color:var(--amber)">
+    <span class="goal-icon">♻️</span>
+    <p><strong data-i18n="goal-label">本步骤目标：</strong><span data-i18n="s11-goal">建立长效的代码质量治理机制，包括自动巡检、PR 审查规则和团队规范，确保重构成果不会被新的技术债务侵蚀。</span></p>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s11-sec1">配置 Claude Code 定期巡检</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-claude">CLAUDE CODE</span><span data-i18n="s11-p1-lbl">设置质量巡检任务</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'governance-loop')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="governance-loop">为本项目配置持续质量巡检，生成可定期运行的检查脚本。
+
+巡检内容：
+1. 扫描最近7天新提交的代码，找出：
+   - 新增的圈复杂度 > 10 的函数
+   - 新增的超过50行的函数
+   - 新增的重复代码块（超过10行）
+2. 检查是否有已废弃但又被重新引入的 API 调用
+3. 检查测试覆盖率是否下降（与上周对比）
+
+输出：生成一个 scripts/quality-check.sh 脚本，
+可以在 CI 中每周自动运行，失败时发送警报。
+
+同时，告诉我如何将这个检查集成到现有的 CI 流程中。</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s11-sec2">PR 审查提示词模板</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-claude">CLAUDE CODE</span><span data-i18n="s11-p2-lbl">AI 辅助 PR 审查（每次代码审查时使用）</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'pr-review')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="pr-review">审查以下 PR 的代码变更，重点关注重构质量：
+
+PR 地址/diff 内容：[粘贴 git diff 或 PR 链接]
+
+审查维度：
+1. 是否引入了新的高复杂度函数（复杂度 > 10）？
+2. 是否有重复代码没有提取？
+3. 变量和函数命名是否清晰易懂？
+4. 是否有遗漏测试的关键路径？
+5. 是否破坏了任何现有接口？
+
+输出审查意见（给出具体行号和建议），
+不要重复描述代码本身，只指出问题和改进建议。</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s11-sec3">CLAUDE.md 长期维护规范</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-claude">CLAUDE CODE</span><span data-i18n="s11-p3-lbl">每月更新 CLAUDE.md</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'claude-md-update')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="claude-md-update">基于过去一个月的重构进展，更新 CLAUDE.md 文件。
+
+更新内容：
+1. 将已完成重构的模块从优先级列表中移除
+2. 根据实际遇到的坑，补充"已知的坑"部分
+3. 如果有新发现的"禁止触碰区域"，添加进去
+4. 更新技术栈版本信息（如有依赖升级）
+5. 添加本月重构的经验总结（1-3条最重要的教训）
+
+同时生成一份本月重构进度报告：
+- 已重构模块数量
+- 代码行数净减少量
+- 测试覆盖率变化
+- 剩余高优先级模块数量</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="s11-sec4">长期治理仪表盘（可选）</div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <div class="prompt-label"><span class="prompt-tag tag-claude">CLAUDE CODE</span><span data-i18n="s11-p4-lbl">生成技术债务趋势报告</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this,'debt-trend')" data-i18n-copy>复制</button>
+      </div>
+      <div class="prompt-body" id="debt-trend">基于 Git 历史记录，生成技术债务趋势分析。
+
+分析维度（按月统计，最近6个月）：
+1. 总代码行数趋势（应该逐月下降）
+2. 平均圈复杂度趋势（应该逐月下降）
+3. 测试覆盖率趋势（应该逐月上升）
+4. 无测试文件数量趋势（应该逐月下降）
+
+输出为 Markdown 表格 + 文字总结。
+如果某个指标在恶化，标注 ⚠️ 并分析原因。</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title" data-i18n="checklist-title">完成检查</div>
+    <div class="checklist">
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s11-c1">quality-check.sh 脚本已创建并集成到 CI</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s11-c2">PR 审查流程已包含 AI 辅助检查环节</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s11-c3">CLAUDE.md 已更新，反映当前项目状态</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s11-c4">已制定下一个月的重构计划（基于更新后的优先级表）</div></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><div class="check-text" data-i18n="s11-c5">团队已了解并认可这套重构工作流</div></div>
+    </div>
+  </div>
+  <div class="step-nav">
+    <button class="nav-btn" onclick="goToStep(10)" data-i18n="btn-prev">← 上一步</button>
+    <button class="complete-btn" id="complete-11" onclick="markDone(11)" data-i18n-done="11">✓ 标记完成</button>
+    <button class="nav-btn primary" onclick="showCompletion()" data-i18n="btn-finish">完成所有步骤 🎉</button>
+  </div>
+</div>
+
+<!-- Completion -->
+<div class="completion-screen" id="completionScreen">
+  <div class="completion-icon">🏆</div>
+  <h2 data-i18n="done-title">重构框架搭建完成！</h2>
+  <p data-i18n="done-body">你已经完成了所有配置步骤。<br>现在的代码库有了完整的测试防护网、自动化质量门控和持续治理机制。<br>剩下的工作是按照优先级表，一个模块一个模块地推进重构。</p>
+  <p style="color:var(--text3);font-size:11px" data-i18n="done-tip">记住核心原则：每次会话只做一件事 · 每个文件改完立即测试 · 遇到不确定就停下来问</p>
+  <br>
+  <button class="restart-btn" onclick="restart()" data-i18n="btn-restart">↺ 重新开始</button>
+</div>
+
+</main>
+</div>
+
+<script>
+// ─────────────────────────────────────────
+//  i18n Translation Dictionary
+// ─────────────────────────────────────────
+const TRANS = {
+  zh: {
+    'sidebar-title': 'Simon大型代码库<br>重构指南',
+    'progress-label': '总进度',
+    'progress-sep': '/ 12 步骤已完成',
+    'nav-sec-0': '准备阶段',
+    'nav-sec-1': '阶段一：探索分析',
+    'nav-sec-2': '阶段二：测试防护网',
+    'nav-sec-3': '阶段三：批量重构',
+    'nav-sec-4': '阶段四：验证治理',
+    'nav-0': '环境配置 &amp; 模型选择',
+    'nav-1': 'CLAUDE.md 初始化',
+    'nav-2': '子智能体配置',
+    'nav-3': '代码库全景扫描',
+    'nav-4': '技术债务评分',
+    'nav-5': '生成特征化测试',
+    'nav-6': '验证 CI 门控',
+    'nav-7': '上下文窗口策略',
+    'nav-8': '单模块重构执行',
+    'nav-9': '并行重构策略',
+    'nav-10': '集成验证检查',
+    'nav-11': '持续治理配置',
+    'star-label': 'Star on GitHub',
+    'ph-setup': '准备阶段',
+    'ph-p1': '阶段一：探索分析',
+    'ph-p2': '阶段二：测试防护网',
+    'ph-p3': '阶段三：批量重构',
+    'ph-p4': '阶段四：验证治理',
+    'ctr-0':'步骤 1 / 12','ctr-1':'步骤 2 / 12','ctr-2':'步骤 3 / 12','ctr-3':'步骤 4 / 12',
+    'ctr-4':'步骤 5 / 12','ctr-5':'步骤 6 / 12','ctr-6':'步骤 7 / 12','ctr-7':'步骤 8 / 12',
+    'ctr-8':'步骤 9 / 12','ctr-9':'步骤 10 / 12','ctr-10':'步骤 11 / 12','ctr-11':'步骤 12 / 12',
+    'goal-label': '本步骤目标：',
+    'checklist-title': '完成检查',
+    'btn-prev': '← 上一步',
+    'btn-next': '下一步 →',
+    'btn-finish': '完成所有步骤 🎉',
+    'btn-restart': '↺ 重新开始',
+    'btn-mark-done': '✓ 标记完成',
+    'btn-done-state': '✓ 已完成',
+    'btn-copy': '复制',
+    'btn-copied': '✓ 已复制',
+    // Step 0
+    's0-title': '环境配置 &amp; 模型选择',
+    's0-desc': '开始前确认 Claude Code 安装、版本及模型配置。对于 300 万行代码库，模型选择直接决定重构质量。',
+    's0-goal': '确认 Claude Code 可用，选择合适模型，建立 Git 安全基线，确保后续所有操作有回滚保障。',
+    's0-sec1': '安装与验证', 's0-sec2': '模型选择指南', 's0-sec3': 'Git 安全基线',
+    's0-p1-lbl': '安装 Claude Code', 's0-p2-lbl': '切换模型（Claude Code 内）', 's0-p3-lbl': '建立安全基线',
+    's0-alert1': '每一步重构前必须确保 Git 状态干净，所有工作在独立分支进行。这是可以无损回滚的唯一保障。',
+    's0-c1': 'Claude Code 已安装并可正常启动（<span class="inline-code">claude --version</span> 有输出）',
+    's0-c2': '已确认使用模型：Opus 4.6 企业版 / Sonnet 4.6（根据预算选择）',
+    's0-c3': '已创建 <span class="inline-code">refactor-baseline</span> 标签，Git 状态干净',
+    's0-c4': '已切换到独立的 <span class="inline-code">refactor/main</span> 分支',
+    'tbl-scale': '代码库规模', 'tbl-model': '推荐模型', 'tbl-ctx': '上下文窗口', 'tbl-use': '适用场景',
+    'tbl-s1': '&lt; 10万行', 'tbl-s2': '10–100万行', 'tbl-s3': '&gt; 100万行（当前）',
+    'tbl-u1': '单模块重构，日常修改', 'tbl-u2': '必须配合严格的分批策略', 'tbl-u3': '跨模块架构分析，最优选择',
+    // Step 1
+    's1-title': 'CLAUDE.md 初始化',
+    's1-desc': 'CLAUDE.md 是整个重构过程的"大脑"。它在每次会话开始时自动加载，消除了重复解释代码库结构的需要，是最重要的配置文件。',
+    's1-goal': '创建包含完整项目上下文的 CLAUDE.md，让每次会话都能在正确的认知基础上开始工作。',
+    's1-sec1': '第一步：让 Claude Code 分析项目结构', 's1-sec2': '第二步：手动补充关键业务信息', 's1-sec3': '第三步：验证 CLAUDE.md 被正确加载',
+    's1-alert1': '先让 Claude 自动分析，再手动补充业务上下文。不要完全手写，效率太低。',
+    's1-p1-lbl': '自动生成 CLAUDE.md 草稿', 's1-p2-lbl': '验证提示词',
+    's1-manual-hint': '在 Claude 生成的草稿基础上，添加只有你知道的信息：',
+    's1-tpl-lbl': '必须手动补充的部分',
+    's1-c1': 'CLAUDE.md 已在项目根目录创建',
+    's1-c2': '已补充禁止触碰区域、重构优先级、已知的坑',
+    's1-c3': '验证 Claude Code 能正确读取并理解 CLAUDE.md 内容',
+    's1-c4': 'CLAUDE.md 已提交到 Git',
+    // Step 2
+    's2-title': '子智能体配置',
+    's2-desc': '子智能体在独立上下文中运行，是应对 300 万行代码库最关键的上下文管理工具。它们探索代码、读取文件，完成后只向主会话报告摘要，保持主会话干净。',
+    's2-goal': '创建可复用的子智能体配置，用于探索、重构和验证三类任务，避免大量文件读取污染主会话上下文。',
+    's2-sec1': '创建目录结构', 's2-sec2': '子智能体 1：模块探索', 's2-sec3': '子智能体 2：安全重构执行器',
+    's2-sec4': '子智能体 3：质量验证器', 's2-sec5': '验证子智能体配置',
+    's2-p1-lbl': '创建子智能体目录', 's2-p2-lbl': '测试子智能体',
+    's2-c1': '已创建 <span class="inline-code">.claude/agents/</span> 目录',
+    's2-c2': '三个子智能体配置文件均已创建',
+    's2-c3': '测试调用 explore-module 子智能体成功，主会话上下文保持干净',
+    // Step 3
+    's3-title': '代码库全景扫描',
+    's3-desc': '在不修改任何代码的情况下，对整个代码库进行深度分析，建立重构所需的全局认知。这一步是后续所有决策的基础。',
+    's3-goal': '生成 REFACTOR_PLAN.md，包含模块地图、依赖关系、测试覆盖率现状和过期依赖清单。',
+    's3-alert1': '本步骤严禁修改任何代码文件。所有操作必须是只读分析。如果 Claude Code 试图修改文件，立即用 <kbd class="kbd">Esc</kbd> 取消。',
+    's3-sec1': '全景扫描提示词', 's3-sec2': '补充：深度分析特定区域',
+    's3-p1-lbl': '主扫描命令（使用子智能体）', 's3-p2-lbl': '针对可疑模块深挖',
+    's3-c1': 'REFACTOR_PLAN.md 已生成，包含模块地图和复杂度热点',
+    's3-c2': '已识别无测试覆盖的核心模块（高风险区域）',
+    's3-c3': '过期依赖清单已整理',
+    's3-c4': '整个分析过程没有修改任何代码文件（git status 干净）',
+    // Step 4
+    's4-title': '技术债务评分',
+    's4-desc': '基于扫描结果，对每个模块进行量化评分，确定重构顺序。避免凭直觉决定先做什么——数据说话。',
+    's4-goal': '生成模块优先级排名表，确定未来几个月的重构顺序。优先选择高风险、低难度的模块。',
+    's4-sec1': '评分提示词', 's4-sec2': '优先级决策规则',
+    's4-p1-lbl': '生成技术债务评分表',
+    'tbl-situation': '情况', 'tbl-decision': '决策', 'tbl-reason': '理由',
+    's4-t1a': '高风险 + 低难度', 's4-t1b': '✅ 立即处理', 's4-t1c': '最高性价比，快速降低整体风险',
+    's4-t2a': '高风险 + 高难度', 's4-t2b': '⚠️ 计划处理', 's4-t2c': '需要专项项目，单独立项',
+    's4-t3a': '低风险 + 低难度', 's4-t3b': '📅 排期处理', 's4-t3c': '可批量处理，放入常规迭代',
+    's4-t4a': '低风险 + 高难度', 's4-t4b': '❌ 暂时跳过', 's4-t4c': '投入产出比最低，暂缓',
+    's4-c1': '所有模块已完成评分，评分表已保存',
+    's4-c2': '已确定前5个优先处理的模块',
+    's4-c3': 'REFACTOR_PLAN.md 已更新优先级信息，并提交到 Git',
+    // Step 5
+    's5-title': '生成特征化测试',
+    's5-desc': '特征化测试是重构的"安全气囊"。它们记录代码当前的实际行为（不管好坏），如果重构意外改变了行为，测试会立即报警。这是触碰代码前必须完成的工作。',
+    's5-goal': '为优先级最高的模块生成完整的特征化测试，确保测试全部通过，然后才能开始修改代码。',
+    's5-alert1': '<strong>注意：</strong>特征化测试不验证"正确性"，只验证"一致性"。即使当前代码有 bug，测试也要记录这个 bug 的行为——重构完成后行为应该保持不变。',
+    's5-sec1': '为单个模块生成特征化测试', 's5-sec2': '批量生成测试（多个无测试模块）',
+    's5-p1-lbl': '特征化测试生成（按模块执行）', 's5-p2-lbl': '批量特征化测试',
+    's5-c1': '所有待重构模块都有特征化测试文件（*.characterization.test.*）',
+    's5-c2': '所有特征化测试均通过（运行 <span class="inline-code">npm test</span> 确认）',
+    's5-c3': '测试文件已提交到 Git（作为重构前的基准快照）',
+    // Step 6
+    's6-title': '验证 CI 门控',
+    's6-desc': '测试防护网需要 CI 自动化来保证每次提交都运行验证。手动运行测试很容易遗漏——CI 不会。',
+    's6-goal': '确保 CI 流水线正确运行特征化测试，并配置失败时阻止合并。这是整个重构过程的自动护栏。',
+    's6-sec1': '生成 CI 配置',
+    's6-p1-lbl': '生成 CI 流水线',
+    's6-c1': 'CI 配置文件已创建并提交',
+    's6-c2': 'CI 已成功运行一次（所有测试通过的绿色状态）',
+    's6-c3': '已确认：测试失败会阻止 PR 合并',
+    // Step 7
+    's7-title': '上下文窗口策略',
+    's7-desc': '上下文窗口是重构过程中最重要的资源。学会主动管理它，而不是被动等待它耗尽。',
+    's7-goal': '掌握上下文管理的三个核心命令，建立每次会话的标准操作流程，避免上下文耗尽导致的错误。',
+    's7-sec1': '核心命令速查', 's7-sec2': '每次重构会话的标准流程', 's7-sec3': '会话开始的标准提示词',
+    'tbl-cmd': '命令', 'tbl-effect': '作用', 'tbl-when': '使用时机',
+    's7-t1b': '压缩历史，保留关键信息', 's7-t1c': '完成一个文件后；感觉响应变慢时',
+    's7-t2b': '彻底清空上下文', 's7-t2c': '切换到完全不同的任务时',
+    's7-t3b': '查看当前上下文使用量', 's7-t3c': '随时查看，接近80%时主动压缩',
+    's7-sop-title': '标准会话 SOP（每次执行重构前阅读）',
+    's7-p1-lbl': '每次会话开始时发送',
+    's7-c1': '已理解 /compact 和 /clear 的使用时机',
+    's7-c2': '已记住会话 SOP（开始/执行/结束三个阶段）',
+    's7-c3': '已准备好第一个重构目标（来自优先级表）',
+    // Step 8
+    's8-title': '单模块重构执行',
+    's8-desc': '这是真正动刀的阶段。每次只重构一个模块（5-20个文件），配合测试验证，逐步推进。以下是针对最常见重构类型的专用提示词。',
+    's8-goal': '完成第一个高优先级模块的重构，建立可重复的执行模式，为后续批量重构奠定基础。',
+    's8-sec1': '类型1：降低圈复杂度', 's8-sec2': '类型2：消除重复代码',
+    's8-sec3': '类型3：现代化语法升级', 's8-sec4': '类型4：Strangler Fig 模式（大型迁移）',
+    's8-sec5': '完成检查（每个模块重构后执行）',
+    's8-p1-lbl': '复杂函数拆分', 's8-p2-lbl': 'DRY 重构',
+    's8-p3-lbl': '回调转 async/await', 's8-p4-lbl': '渐进式架构迁移',
+    's8-c1': '重构前：git 状态干净，在 feature 分支',
+    's8-c2': '重构中：每个文件完成后立即运行测试并 commit',
+    's8-c3': '重构后：所有特征化测试通过，无新增 lint 错误',
+    's8-c4': '外部接口未发生变化（函数签名、API 路径均保持一致）',
+    // Step 9
+    's9-title': '并行重构策略',
+    's9-desc': '当单模块重构流程稳定后，使用 Git Worktrees + 多实例并行处理，将重构效率提升数倍。适合需要对多个独立模块同时推进的场景。',
+    's9-goal': '建立并行重构工作流，同时推进多个不相互依赖的模块，大幅缩短整体重构时间线。',
+    's9-sec1': 'Git Worktrees 并行设置', 's9-sec2': '大批量文件并行处理（/batch 命令）', 's9-sec3': '并行重构的适用条件',
+    's9-p1-lbl': '建立并行工作区', 's9-p2-lbl': '批量替换废弃 API',
+    'tbl-condition': '条件', 'tbl-parallel': '是否适合并行',
+    's9-t1a': '两个模块之间没有互相依赖', 's9-t1b': '✅ 适合并行',
+    's9-t2a': '重构同一类问题（如替换废弃 API）', 's9-t2b': '✅ 适合并行（/batch）',
+    's9-t3a': '模块A 的重构结果会影响模块B', 's9-t3b': '❌ 必须串行',
+    's9-t4a': '共享工具函数需要同时修改', 's9-t4b': '⚠️ 谨慎并行，注意冲突',
+    's9-c1': '已确认并行模块之间无依赖关系',
+    's9-c2': 'Worktrees 建立正常，各目录独立工作',
+    's9-c3': '各并行分支最终 PR 依次合并（先后顺序），无合并冲突',
+    // Step 10
+    's10-title': '集成验证检查',
+    's10-desc': '每完成一批模块重构后，进行系统级的集成验证。这不是单元测试——而是验证模块之间的协作依然正常工作。',
+    's10-goal': '确认本轮重构没有引入跨模块的回归问题，性能基准未下降，为下一轮重构建立新的基线。',
+    's10-sec1': '集成验证提示词', 's10-sec2': '性能回归检查',
+    's10-p1-lbl': '完整集成验证（每批结束后执行）', 's10-p2-lbl': '性能基准对比',
+    's10-c1': '所有测试通过（单元 + 集成 + 特征化）',
+    's10-c2': '质量对比报告已生成，代码行数净减少',
+    's10-c3': '所有外部接口签名未变化',
+    's10-c4': 'PR 已创建，CI 绿色，已合并到主分支',
+    's10-c5': '更新 CLAUDE.md 中的优先级列表（已完成的划掉）',
+    // Step 11
+    's11-title': '持续治理配置',
+    's11-desc': '重构不是一次性工程——遗留代码库的技术债务需要持续治理。配置自动化巡检，防止债务反弹，让 Claude Code 成为常驻的代码质量守卫。',
+    's11-goal': '建立长效的代码质量治理机制，包括自动巡检、PR 审查规则和团队规范，确保重构成果不会被新的技术债务侵蚀。',
+    's11-sec1': '配置 Claude Code 定期巡检', 's11-sec2': 'PR 审查提示词模板',
+    's11-sec3': 'CLAUDE.md 长期维护规范', 's11-sec4': '长期治理仪表盘（可选）',
+    's11-p1-lbl': '设置质量巡检任务', 's11-p2-lbl': 'AI 辅助 PR 审查（每次代码审查时使用）',
+    's11-p3-lbl': '每月更新 CLAUDE.md', 's11-p4-lbl': '生成技术债务趋势报告',
+    's11-c1': 'quality-check.sh 脚本已创建并集成到 CI',
+    's11-c2': 'PR 审查流程已包含 AI 辅助检查环节',
+    's11-c3': 'CLAUDE.md 已更新，反映当前项目状态',
+    's11-c4': '已制定下一个月的重构计划（基于更新后的优先级表）',
+    's11-c5': '团队已了解并认可这套重构工作流',
+    // Completion
+    'done-title': '重构框架搭建完成！',
+    'done-body': '你已经完成了所有配置步骤。<br>现在的代码库有了完整的测试防护网、自动化质量门控和持续治理机制。<br>剩下的工作是按照优先级表，一个模块一个模块地推进重构。',
+    'done-tip': '记住核心原则：每次会话只做一件事 · 每个文件改完立即测试 · 遇到不确定就停下来问',
+  },
+  en: {
+    'sidebar-title': 'Simon Large Codebase<br>Refactoring Guide',
+    'progress-label': 'OVERALL PROGRESS',
+    'progress-sep': '/ 12 steps done',
+    'nav-sec-0': 'SETUP',
+    'nav-sec-1': 'PHASE 1: EXPLORATION',
+    'nav-sec-2': 'PHASE 2: TEST SAFETY NET',
+    'nav-sec-3': 'PHASE 3: BATCH REFACTORING',
+    'nav-sec-4': 'PHASE 4: GOVERNANCE',
+    'nav-0': 'Env Setup &amp; Model Selection',
+    'nav-1': 'CLAUDE.md Initialization',
+    'nav-2': 'Sub-agent Configuration',
+    'nav-3': 'Full Codebase Scan',
+    'nav-4': 'Tech Debt Scoring',
+    'nav-5': 'Characterization Tests',
+    'nav-6': 'CI Gate Validation',
+    'nav-7': 'Context Window Strategy',
+    'nav-8': 'Single Module Refactoring',
+    'nav-9': 'Parallel Refactoring',
+    'nav-10': 'Integration Verification',
+    'nav-11': 'Continuous Governance',
+    'star-label': 'Star on GitHub',
+    'ph-setup': 'SETUP PHASE',
+    'ph-p1': 'PHASE 1: EXPLORATION',
+    'ph-p2': 'PHASE 2: TEST SAFETY NET',
+    'ph-p3': 'PHASE 3: BATCH REFACTORING',
+    'ph-p4': 'PHASE 4: GOVERNANCE',
+    'ctr-0':'Step 1 / 12','ctr-1':'Step 2 / 12','ctr-2':'Step 3 / 12','ctr-3':'Step 4 / 12',
+    'ctr-4':'Step 5 / 12','ctr-5':'Step 6 / 12','ctr-6':'Step 7 / 12','ctr-7':'Step 8 / 12',
+    'ctr-8':'Step 9 / 12','ctr-9':'Step 10 / 12','ctr-10':'Step 11 / 12','ctr-11':'Step 12 / 12',
+    'goal-label': 'Step Goal:',
+    'checklist-title': 'COMPLETION CHECKLIST',
+    'btn-prev': '← Prev',
+    'btn-next': 'Next →',
+    'btn-finish': 'Complete All Steps 🎉',
+    'btn-restart': '↺ Restart',
+    'btn-mark-done': '✓ Mark Done',
+    'btn-done-state': '✓ Done',
+    'btn-copy': 'Copy',
+    'btn-copied': '✓ Copied',
+    // Step 0
+    's0-title': 'Env Setup &amp; Model Selection',
+    's0-desc': 'Verify Claude Code installation and model config before starting. For a 3M-line codebase, model choice directly determines refactoring quality.',
+    's0-goal': 'Confirm Claude Code is available, select the right model, establish a Git safety baseline so every future operation can be rolled back.',
+    's0-sec1': 'Installation & Verification', 's0-sec2': 'Model Selection Guide', 's0-sec3': 'Git Safety Baseline',
+    's0-p1-lbl': 'Install Claude Code', 's0-p2-lbl': 'Switch model (inside Claude Code)', 's0-p3-lbl': 'Establish safety baseline',
+    's0-alert1': 'Before every refactoring step, the Git working tree must be clean and all work must happen on an isolated branch. This is the only way to guarantee a lossless rollback.',
+    's0-c1': 'Claude Code is installed and starts correctly (<span class="inline-code">claude --version</span> has output)',
+    's0-c2': 'Model confirmed: Opus 4.6 Enterprise / Sonnet 4.6 (based on budget)',
+    's0-c3': 'Git state is clean; <span class="inline-code">refactor-baseline</span> tag created',
+    's0-c4': 'Switched to isolated <span class="inline-code">refactor/main</span> branch',
+    'tbl-scale': 'Codebase Size', 'tbl-model': 'Recommended Model', 'tbl-ctx': 'Context Window', 'tbl-use': 'Best For',
+    'tbl-s1': '&lt; 100K lines', 'tbl-s2': '100K–1M lines', 'tbl-s3': '&gt; 1M lines (current)',
+    'tbl-u1': 'Single-module refactoring, daily changes', 'tbl-u2': 'Requires strict batching strategy', 'tbl-u3': 'Cross-module architecture analysis, best choice',
+    // Step 1
+    's1-title': 'CLAUDE.md Initialization',
+    's1-desc': 'CLAUDE.md is the "brain" of the entire refactoring process. It auto-loads at the start of every session, eliminating the need to re-explain the codebase structure each time.',
+    's1-goal': 'Create a CLAUDE.md with complete project context so every session starts from the correct mental model.',
+    's1-sec1': 'Step 1: Let Claude Code analyse the project', 's1-sec2': 'Step 2: Manually add key business context', 's1-sec3': 'Step 3: Verify CLAUDE.md loads correctly',
+    's1-alert1': 'Let Claude auto-analyse first, then manually add business context. Writing it all by hand is too slow.',
+    's1-p1-lbl': 'Auto-generate CLAUDE.md draft', 's1-p2-lbl': 'Verification prompt',
+    's1-manual-hint': 'Add information only you know to Claude\'s generated draft:',
+    's1-tpl-lbl': 'sections to fill in manually',
+    's1-c1': 'CLAUDE.md created at the project root',
+    's1-c2': 'Added: forbidden zones, refactor priorities, known pitfalls',
+    's1-c3': 'Verified Claude Code correctly reads and understands CLAUDE.md',
+    's1-c4': 'CLAUDE.md committed to Git',
+    // Step 2
+    's2-title': 'Sub-agent Configuration',
+    's2-desc': 'Sub-agents run in isolated contexts — the most critical context-management tool for a 3M-line codebase. They explore code and read files, then return only a summary to the main session.',
+    's2-goal': 'Create reusable sub-agent configs for exploration, refactoring, and verification tasks to prevent massive file reads from polluting the main session context.',
+    's2-sec1': 'Create directory structure', 's2-sec2': 'Sub-agent 1: Module Explorer',
+    's2-sec3': 'Sub-agent 2: Safe Refactoring Executor', 's2-sec4': 'Sub-agent 3: Quality Verifier', 's2-sec5': 'Verify sub-agent config',
+    's2-p1-lbl': 'Create sub-agent directory', 's2-p2-lbl': 'Test sub-agent',
+    's2-c1': '<span class="inline-code">.claude/agents/</span> directory created',
+    's2-c2': 'All three sub-agent config files created',
+    's2-c3': 'explore-module sub-agent tested successfully; main session context stays clean',
+    // Step 3
+    's3-title': 'Full Codebase Scan',
+    's3-desc': 'Deep-analyse the entire codebase without modifying anything. This builds the global picture that all subsequent decisions depend on.',
+    's3-goal': 'Generate REFACTOR_PLAN.md containing the module map, dependency graph, test coverage status, and stale-dependency list.',
+    's3-alert1': '<strong>Read-only:</strong> do not modify any code file in this step. If Claude Code tries to write a file, press <kbd class="kbd">Esc</kbd> immediately.',
+    's3-sec1': 'Full-scan prompt', 's3-sec2': 'Deep-dive on specific areas',
+    's3-p1-lbl': 'Main scan command (using sub-agents)', 's3-p2-lbl': 'Deep-dive a suspicious module',
+    's3-c1': 'REFACTOR_PLAN.md generated with module map and complexity hotspots',
+    's3-c2': 'Zero-test-coverage core modules identified (high-risk zones)',
+    's3-c3': 'Stale dependency list compiled',
+    's3-c4': 'No code files modified during analysis (git status clean)',
+    // Step 4
+    's4-title': 'Tech Debt Scoring',
+    's4-desc': 'Score every module based on scan results to determine refactoring order. Don\'t rely on gut feeling — let the data decide.',
+    's4-goal': 'Produce a module priority ranking table to guide the next several months of refactoring. High-risk, low-difficulty modules first.',
+    's4-sec1': 'Scoring prompt', 's4-sec2': 'Priority decision rules',
+    's4-p1-lbl': 'Generate tech-debt scoring table',
+    'tbl-situation': 'Situation', 'tbl-decision': 'Decision', 'tbl-reason': 'Rationale',
+    's4-t1a': 'High risk + Low difficulty', 's4-t1b': '✅ Do immediately', 's4-t1c': 'Best ROI, rapidly reduces overall risk',
+    's4-t2a': 'High risk + High difficulty', 's4-t2b': '⚠️ Plan carefully', 's4-t2c': 'Needs dedicated project track',
+    's4-t3a': 'Low risk + Low difficulty', 's4-t3b': '📅 Schedule normally', 's4-t3c': 'Batch into regular sprints',
+    's4-t4a': 'Low risk + High difficulty', 's4-t4b': '❌ Skip for now', 's4-t4c': 'Lowest ROI, defer indefinitely',
+    's4-c1': 'All modules scored; scoring table saved',
+    's4-c2': 'Top 5 priority modules identified',
+    's4-c3': 'REFACTOR_PLAN.md updated with priority info and committed to Git',
+    // Step 5
+    's5-title': 'Generate Characterization Tests',
+    's5-desc': 'Characterization tests are the refactoring airbag. They lock in the code\'s current behaviour (good or bad) — if a refactor accidentally changes behaviour, the tests fire immediately.',
+    's5-goal': 'Generate complete characterization tests for the highest-priority modules. All tests must pass before any code is touched.',
+    's5-alert1': '<strong>Note:</strong> Characterization tests verify consistency, not correctness. Even if the current code has a bug, the test records that buggy behaviour — post-refactor behaviour must remain identical.',
+    's5-sec1': 'Generate tests for a single module', 's5-sec2': 'Bulk-generate tests (multiple untested modules)',
+    's5-p1-lbl': 'Characterization test generation (per module)', 's5-p2-lbl': 'Bulk characterization tests',
+    's5-c1': 'Every module to be refactored has a *.characterization.test.* file',
+    's5-c2': 'All characterization tests pass (confirmed with <span class="inline-code">npm test</span>)',
+    's5-c3': 'Test files committed to Git (snapshot before refactoring)',
+    // Step 6
+    's6-title': 'CI Gate Validation',
+    's6-desc': 'The test safety net only works if CI automatically runs checks on every commit. Manual test runs are easy to forget — CI never forgets.',
+    's6-goal': 'Ensure the CI pipeline runs characterization tests and is configured to block merges on failure — the automated guardrail for the entire refactoring effort.',
+    's6-sec1': 'Generate CI config',
+    's6-p1-lbl': 'Generate CI pipeline',
+    's6-c1': 'CI config file created and committed',
+    's6-c2': 'CI ran successfully at least once (green status, all tests passing)',
+    's6-c3': 'Confirmed: failing tests block PR merges',
+    // Step 7
+    's7-title': 'Context Window Strategy',
+    's7-desc': 'The context window is the most important resource in the refactoring process. Learn to manage it proactively — don\'t wait for it to run out.',
+    's7-goal': 'Master the three core context-management commands and establish a standard session SOP to prevent context-exhaustion errors.',
+    's7-sec1': 'Core command reference', 's7-sec2': 'Standard session workflow', 's7-sec3': 'Standard session-start prompt',
+    'tbl-cmd': 'Command', 'tbl-effect': 'Effect', 'tbl-when': 'When to use',
+    's7-t1b': 'Compress history, preserve key info', 's7-t1c': 'After finishing a file; when responses slow down',
+    's7-t2b': 'Completely wipe context', 's7-t2c': 'When switching to a completely different task',
+    's7-t3b': 'Show current context usage', 's7-t3c': 'Check anytime; compact proactively at ~80%',
+    's7-sop-title': 'Standard Session SOP (read before every refactoring session)',
+    's7-p1-lbl': 'Send at the start of every session',
+    's7-c1': 'Understand when to use /compact vs /clear',
+    's7-c2': 'Session SOP memorised (start / execute / finish phases)',
+    's7-c3': 'First refactoring target ready (from the priority table)',
+    // Step 8
+    's8-title': 'Single Module Refactoring',
+    's8-desc': 'This is where real code changes happen. Refactor one module at a time (5–20 files), verify with tests, and advance step by step. Below are specialised prompts for the most common refactoring types.',
+    's8-goal': 'Complete the first high-priority module refactoring, establish a repeatable execution pattern as the template for all subsequent work.',
+    's8-sec1': 'Type 1: Reduce cyclomatic complexity', 's8-sec2': 'Type 2: Eliminate duplicate code',
+    's8-sec3': 'Type 3: Modernise syntax', 's8-sec4': 'Type 4: Strangler Fig pattern (large migration)',
+    's8-sec5': 'Completion checklist (run after each module)',
+    's8-p1-lbl': 'Complex function decomposition', 's8-p2-lbl': 'DRY refactoring',
+    's8-p3-lbl': 'Callback → async/await migration', 's8-p4-lbl': 'Incremental architecture migration',
+    's8-c1': 'Before: git state clean, on a feature branch',
+    's8-c2': 'During: run tests and commit after every file',
+    's8-c3': 'After: all characterization tests pass, no new lint errors',
+    's8-c4': 'External interfaces unchanged (function signatures, API paths consistent)',
+    // Step 9
+    's9-title': 'Parallel Refactoring Strategy',
+    's9-desc': 'Once the single-module workflow is stable, use Git Worktrees + multiple Claude Code instances in parallel to multiply throughput.',
+    's9-goal': 'Build a parallel refactoring workflow that simultaneously advances multiple independent modules, dramatically shortening the overall timeline.',
+    's9-sec1': 'Git Worktrees parallel setup', 's9-sec2': 'Bulk file processing (/batch command)', 's9-sec3': 'Conditions for parallel work',
+    's9-p1-lbl': 'Create parallel workspaces', 's9-p2-lbl': 'Bulk-replace deprecated API',
+    'tbl-condition': 'Condition', 'tbl-parallel': 'Suitable for parallel?',
+    's9-t1a': 'Two modules have no mutual dependency', 's9-t1b': '✅ Parallel OK',
+    's9-t2a': 'Same category of change (e.g. replace deprecated API)', 's9-t2b': '✅ Parallel OK (/batch)',
+    's9-t3a': 'Module A\'s refactoring output affects Module B', 's9-t3b': '❌ Must be serial',
+    's9-t4a': 'Shared utility functions need simultaneous changes', 's9-t4b': '⚠️ Parallel with caution, watch for conflicts',
+    's9-c1': 'Confirmed: parallel modules have no dependency on each other',
+    's9-c2': 'Worktrees set up correctly; each directory works independently',
+    's9-c3': 'Parallel branches merged into main sequentially; no merge conflicts',
+    // Step 10
+    's10-title': 'Integration Verification',
+    's10-desc': 'After each batch of module refactoring, run system-level integration verification. This is not unit testing — it confirms that inter-module collaboration still works correctly.',
+    's10-goal': 'Confirm this refactoring round introduced no cross-module regressions and no performance degradation, then establish a new baseline for the next round.',
+    's10-sec1': 'Integration verification prompt', 's10-sec2': 'Performance regression check',
+    's10-p1-lbl': 'Full integration verification (run after each batch)', 's10-p2-lbl': 'Performance benchmark comparison',
+    's10-c1': 'All tests pass (unit + integration + characterization)',
+    's10-c2': 'Quality comparison report generated; net lines of code reduced',
+    's10-c3': 'All external interface signatures unchanged',
+    's10-c4': 'PR created, CI green, merged to main branch',
+    's10-c5': 'CLAUDE.md priority list updated (completed items removed)',
+    // Step 11
+    's11-title': 'Continuous Governance Setup',
+    's11-desc': 'Refactoring is not a one-time project — technical debt in legacy codebases requires ongoing governance. Configure automated patrols to prevent debt from creeping back.',
+    's11-goal': 'Establish a long-term code-quality governance system — automated scans, PR review rules, and team norms — so refactoring gains are never eroded by new debt.',
+    's11-sec1': 'Configure Claude Code periodic patrol', 's11-sec2': 'PR review prompt template',
+    's11-sec3': 'CLAUDE.md long-term maintenance', 's11-sec4': 'Long-term governance dashboard (optional)',
+    's11-p1-lbl': 'Set up quality patrol task', 's11-p2-lbl': 'AI-assisted PR review (use during every code review)',
+    's11-p3-lbl': 'Monthly CLAUDE.md update', 's11-p4-lbl': 'Generate tech-debt trend report',
+    's11-c1': 'quality-check.sh script created and integrated into CI',
+    's11-c2': 'PR review process now includes an AI-assisted check step',
+    's11-c3': 'CLAUDE.md updated to reflect current project state',
+    's11-c4': 'Next month\'s refactoring plan drafted (based on updated priority table)',
+    's11-c5': 'Team understands and accepts this refactoring workflow',
+    // Completion
+    'done-title': 'Refactoring Framework Complete!',
+    'done-body': 'You\'ve finished all setup steps.<br>The codebase now has a complete test safety net, automated quality gates, and a continuous governance system.<br>The remaining work is to advance module by module following the priority table.',
+    'done-tip': 'Core principle: one task per session · test immediately after each file · stop and ask when uncertain',
+  }
+};
+
+// ─────────────────────────────────────────
+//  State
+// ─────────────────────────────────────────
+const TOTAL_STEPS = 12;
+const doneSteps = new Set();
+let currentLang = 'zh';
+
+// ─────────────────────────────────────────
+//  i18n
+// ─────────────────────────────────────────
+function applyLang(lang) {
+  const t = TRANS[lang];
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const k = el.dataset.i18n;
+    if (t[k] !== undefined) el.innerHTML = t[k];
+  });
+  // Copy buttons
+  document.querySelectorAll('[data-i18n-copy]').forEach(btn => {
+    if (!btn.classList.contains('copied')) btn.textContent = t['btn-copy'];
+  });
+  // Done buttons
+  document.querySelectorAll('[data-i18n-done]').forEach(btn => {
+    const idx = parseInt(btn.dataset.i18nDone);
+    btn.textContent = doneSteps.has(idx) ? t['btn-done-state'] : t['btn-mark-done'];
+  });
+  // Progress sep
+  updateProgress();
+  // Toggle button label
+  document.getElementById('langToggle').textContent = lang === 'zh' ? 'EN' : 'CN';
+  document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+}
+
+function toggleLang() {
+  currentLang = currentLang === 'zh' ? 'en' : 'zh';
+  applyLang(currentLang);
+}
+
+// ─────────────────────────────────────────
+//  Navigation
+// ─────────────────────────────────────────
+function goToStep(index) {
+  document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('completionScreen').classList.remove('active');
+  const panel = document.getElementById('step-' + index);
+  if (panel) { panel.classList.add('active'); document.getElementById('mainContent').scrollTop = 0; }
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.classList.remove('active');
+    if (parseInt(item.dataset.step) === index) item.classList.add('active');
+  });
+}
+
+// ─────────────────────────────────────────
+//  Checklist
+// ─────────────────────────────────────────
+function toggleCheck(el) {
+  el.classList.toggle('checked');
+  el.querySelector('.check-box').textContent = el.classList.contains('checked') ? '✓' : '';
+}
+
+// ─────────────────────────────────────────
+//  Progress & Done
+// ─────────────────────────────────────────
+function markDone(index) {
+  doneSteps.add(index);
+  const btn = document.getElementById('complete-' + index);
+  if (btn) { btn.classList.add('is-done'); btn.textContent = TRANS[currentLang]['btn-done-state']; }
+  const navItem = document.querySelector('[data-step="' + index + '"]');
+  if (navItem) { navItem.classList.add('done'); navItem.classList.remove('active'); }
+  updateProgress();
+}
+
+function updateProgress() {
+  const done = doneSteps.size;
+  document.getElementById('doneCount').textContent = done;
+  document.getElementById('progressBar').style.width = (done / TOTAL_STEPS * 100) + '%';
+  const sep = document.querySelector('[data-i18n="progress-sep"]');
+  if (sep) sep.innerHTML = TRANS[currentLang]['progress-sep'];
+}
+
+function showCompletion() {
+  markDone(11);
+  document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('completionScreen').classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+}
+
+function restart() {
+  doneSteps.clear();
+  document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('done'));
+  document.querySelectorAll('[data-i18n-done]').forEach(b => {
+    b.classList.remove('is-done');
+    b.textContent = TRANS[currentLang]['btn-mark-done'];
+  });
+  document.querySelectorAll('.check-item').forEach(i => {
+    i.classList.remove('checked');
+    i.querySelector('.check-box').textContent = '';
+  });
+  updateProgress();
+  goToStep(0);
+}
+
+// ─────────────────────────────────────────
+//  Copy
+// ─────────────────────────────────────────
+function copyPrompt(btn, id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent.trim()).then(() => {
+    btn.textContent = TRANS[currentLang]['btn-copied'];
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = TRANS[currentLang]['btn-copy'];
+      btn.classList.remove('copied');
+    }, 1800);
+  });
+}
+
+// ─────────────────────────────────────────
+//  GitHub Star Count
+// ─────────────────────────────────────────
+async function loadStarCount() {
+  try {
+    const r = await fetch('https://api.github.com/repos/simon-liu-xin/claude-code-refactor-skill', {
+      headers: { 'Accept': 'application/vnd.github.v3+json' }
+    });
+    if (r.ok) {
+      const d = await r.json();
+      const n = d.stargazers_count;
+      document.getElementById('starCount').textContent = n >= 1000
+        ? (n / 1000).toFixed(1) + 'k' : n;
+    }
+  } catch(e) { /* leave as — */ }
+}
+
+// ─────────────────────────────────────────
+//  Init
+// ─────────────────────────────────────────
+updateProgress();
+loadStarCount();
+</script>
+</body>
+</html>
