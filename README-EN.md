@@ -55,7 +55,7 @@ open index.html
 
 ## 📸 Preview
 
-<img width="1139" height="732" alt="image" src="https://github.com/user-attachments/assets/8ff3443b-22eb-4860-8982-facd486b3bbd" />
+<img width="1125" height="552" alt="image" src="https://github.com/user-attachments/assets/35a6696b-0a68-4754-a7c9-c2b010b6fcb6" />
 
 -----
 
