@@ -140,7 +140,7 @@
 <aside class="sidebar">
   <div class="sidebar-logo">
     <div class="logo-top">
-      <a href="https://github.com/simon-liu-xin/claude-code-refactor-skill" target="_blank" class="logo-tag">Simon-Refactor-Skill v1.0</a>
+      <a href="https://github.com/simon-liu-xin/claude-code-refactor-skill" target="_blank" class="logo-tag">SKILL V1.0</a>
       <button class="lang-toggle" id="langToggle" onclick="toggleLang()">EN</button>
     </div>
     <h1 data-i18n="sidebar-title">Simon大型代码库<br>重构指南</h1>
@@ -877,7 +877,7 @@ description: 对已重构的模块进行质量验证
     <div class="section-title" data-i18n="s7-sec2">每次重构会话的标准流程</div>
     <div class="config-block">
       <div class="config-header"><div class="config-filename">📋 <span data-i18n="s7-sop-title">标准会话 SOP（每次执行重构前阅读）</span></div></div>
-      <div class="prompt-body">开始前：
+      <div class="prompt-body" id="sop-block">开始前：
   1. 新建一个 Git feature 分支
      git checkout -b refactor/[模块名]-[日期]
   2. 确认上下文干净（如果是新任务，先 /clear）
@@ -1743,6 +1743,895 @@ const TRANS = {
 };
 
 // ─────────────────────────────────────────
+//  Prompt Content — both languages
+// ─────────────────────────────────────────
+const PROMPTS = {
+zh: {
+'install-cmd':
+`npm install -g @anthropic-ai/claude-code
+
+# 验证安装
+claude --version
+
+# 进入项目目录
+cd /your/project/root
+
+# 启动 Claude Code
+claude`,
+'model-cmd':
+`# 在 Claude Code 会话中切换模型
+/model opus    # 使用 Opus 4.6（企业版推荐）
+/model sonnet  # 使用 Sonnet 4.6（预算有限时）`,
+'git-setup':
+`# 确认当前状态干净
+git status
+
+# 创建重构基础标签（随时可以回到这里）
+git tag refactor-baseline-$(date +%Y%m%d)
+
+# 创建重构主分支
+git checkout -b refactor/main
+
+# 推送到远程
+git push origin refactor/main`,
+'claude-md-gen':
+`分析当前项目结构，为我生成一个 CLAUDE.md 草稿文件。
+
+要求包含以下内容：
+1. 项目技术栈（语言、主要框架、运行时版本）
+2. 目录结构概览（只到两级，不要太细）
+3. 构建命令、测试命令、代码风格检查命令
+4. 主要模块列表（列出 src/ 下的主要子目录及其职责描述）
+
+不要修改任何代码，只生成 CLAUDE.md 文件。`,
+'claude-md-manual':
+`# ⚠️ 禁止触碰区域（不得修改）
+- \`/legacy/core/critical_path.*\` — 生产关键路径
+- \`/db/migrations/\` — 只能添加，不能修改已有文件
+- \`/config/production.*\` — 生产环境配置
+
+# 重构优先级
+## 高优先级（先做）
+- [ ] /auth/token.js — 安全漏洞，圈复杂度 22
+- [ ] /payment/processor.js — 无测试，6年无人维护
+
+## 中优先级
+- [ ] /user/service.js — 重复代码严重
+- [ ] /api/routes.js — 路由层职责混乱
+
+## 低优先级（最后做）
+- [ ] /utils/ — 工具函数，风险低
+
+# 重构规范（每次会话必须遵守）
+1. 每修改一个文件，立即运行该文件的测试
+2. 不确定业务逻辑时，停下来提问，不要猜测
+3. 保持外部接口不变（函数签名、API 路径）
+4. 每个功能点完成后 git commit 一次
+
+# 当前已知的坑
+- auth 模块依赖一个未文档化的全局变量 \`__LEGACY_SESSION\`
+- payment 模块有循环依赖问题（payment → order → payment）
+- 所有日期处理都用了废弃的 moment.js，迁移到 dayjs`,
+'claude-md-verify':
+`根据 CLAUDE.md，告诉我：
+1. 本项目的技术栈是什么？
+2. 哪些目录是禁止修改的？
+3. 当前重构的最高优先级模块是哪个？
+
+不要读取其他文件，只基于 CLAUDE.md 回答。`,
+'agent-dir': `mkdir -p .claude/agents`,
+'agent-explore':
+`---
+name: explore-module
+description: 探索指定模块，生成分析报告，不修改任何文件
+---
+接收模块路径作为参数，执行以下分析：
+
+1. 列出模块内所有文件及行数
+2. 识别主要依赖关系（import/require 分析）
+3. 找出复杂度最高的前5个函数（估算圈复杂度）
+4. 识别重复代码块（超过10行的相似代码）
+5. 统计测试覆盖率（如果有测试文件）
+6. 列出所有对外暴露的接口（exports）
+
+输出格式：简洁的 Markdown 报告，总结关键问题，不输出完整代码。
+禁止修改任何文件。`,
+'agent-refactor':
+`---
+name: refactor-safe
+description: 对单个文件执行安全重构，每步运行测试验证
+---
+接收文件路径和重构目标作为参数，执行以下流程：
+
+1. 读取文件，理解当前实现
+2. 检查是否有对应测试文件
+3. 如果没有测试，先生成特征化测试并运行通过
+4. 执行重构（一次只改一件事）
+5. 运行测试，确认全部通过
+6. 如果测试失败，回滚变更并报告原因
+7. 输出变更摘要（改了什么，为什么这么改）
+
+规范约束：
+- 保持函数外部签名不变
+- 每次重构只针对一个问题（复杂度/重复/命名）
+- 遇到不确定的业务逻辑，停止并说明疑问`,
+'agent-verify':
+`---
+name: verify-quality
+description: 对已重构的模块进行质量验证
+---
+接收模块路径作为参数，执行以下验证：
+
+1. 运行所有测试（单元测试 + 特征化测试），汇报通过率
+2. 运行 linter，列出新增的 warning（与 main 分支对比）
+3. 检查函数长度：找出仍然超过50行的函数
+4. 检查圈复杂度：找出仍然超过10的函数
+5. 检查是否有硬编码的魔法数字或字符串
+6. 输出通过/失败摘要表格，不输出完整代码
+
+判断标准：
+- ✅ 所有测试通过
+- ✅ 无新增 linter 错误
+- ⚠️ 有新增 warning（可接受但需说明）
+- ❌ 有测试失败（必须修复后才能继续）`,
+'agent-test':
+`使用 explore-module 子智能体，分析 src/ 目录下最大的那个子模块。
+只输出分析报告摘要，不要读取项目中的其他文件。`,
+'scan-main':
+`使用子智能体并行探索以下四个维度，不要修改任何文件，禁止执行写入操作：
+
+子智能体1 - 结构分析：
+- 列出 src/ 下所有模块（目录），每个模块的文件数量和总行数
+- 识别明显的架构模式（MVC/分层/领域驱动）
+
+子智能体2 - 复杂度热点：
+- 找出行数最多的前20个文件
+- 识别函数超过100行的文件
+- 找出有明显重复代码的模块
+
+子智能体3 - 测试覆盖：
+- 统计有测试文件的模块 vs 没有测试的模块
+- 列出完全没有测试的核心模块
+
+子智能体4 - 依赖健康：
+- 读取 package.json / requirements.txt / pom.xml
+- 列出超过3年未更新的依赖
+- 识别已知安全漏洞的依赖版本
+
+所有结果汇总输出为 REFACTOR_PLAN.md 文件。`,
+'scan-deep':
+`使用 explore-module 子智能体，深度分析 [替换为你的高风险模块路径]。
+
+重点关注：
+1. 这个模块被哪些其他模块依赖？（被依赖越多，重构风险越高）
+2. 有没有循环依赖？
+3. 有没有全局状态或单例？（这些最难重构）
+4. 外部接口有多少个？（接口越多，需要保持兼容的约束越多）
+
+不要修改任何文件，只输出分析报告。`,
+'debt-score':
+`基于 REFACTOR_PLAN.md 中的分析结果，对每个模块进行技术债务评分。
+
+评分维度（各1-5分）：
+- 安全风险：有无已知漏洞、权限绕过可能性
+- 维护成本：代码复杂度、文档缺失程度、理解难度
+- 业务影响：该模块故障对用户的影响范围
+- 重构难度：依赖数量、测试覆盖率、接口复杂度
+
+计算优先级分数 = (安全风险 + 维护成本 + 业务影响) / 重构难度
+分数越高 = 越应该先做
+
+以 CSV 格式输出结果：
+模块路径,安全风险,维护成本,业务影响,重构难度,优先级分数,建议处理顺序
+
+同时给出文字建议：
+- 应该立即处理的前3个模块（原因）
+- 暂时跳过的模块（原因）
+- 需要特别注意的风险点`,
+'char-test':
+`为 [替换为模块路径，如 src/services/PaymentService.js] 的所有公共方法生成特征化测试。
+
+测试规范：
+1. 测试目标是记录当前行为，不是验证正确性
+2. 每个公共方法至少需要以下测试用例：
+   - 正常输入的正常路径
+   - null / undefined 输入
+   - 空字符串 / 空数组 / 0 等边界值
+   - 预期会抛出异常的情况
+3. 测试文件命名：在原文件名后加 .characterization.test.js
+4. 使用现有的测试框架（查看 package.json 确认）
+5. 每个测试加上注释：// CHARACTERIZATION: 记录当前行为
+
+生成测试后，立即运行测试确认全部通过。
+如果发现测试无法通过（说明当前代码本身有问题），
+停止并向我报告，不要自动修复。`,
+'char-test-batch':
+`使用并行子智能体，为以下模块分别生成特征化测试：
+（每个子智能体处理一个模块，互不干扰）
+
+- src/services/UserService.js
+- src/utils/DateHelper.js
+- src/middleware/AuthMiddleware.js
+
+每个子智能体完成后汇报：
+- 生成了多少个测试用例
+- 测试运行结果（通过/失败数量）
+- 是否发现了当前代码的 bug（测试无法通过的情况）
+
+最终汇总报告：哪些模块已有完整测试防护网，可以开始重构。`,
+'ci-gen':
+`为本项目生成 CI 配置文件，用于在每次 Push 时自动验证重构质量。
+
+要求：
+1. 运行所有单元测试（包括 .characterization.test.* 文件）
+2. 运行 linter，发现错误时 CI 失败
+3. 检查是否有新增的函数超过50行（警告，不失败）
+4. 输出测试覆盖率报告
+
+根据项目实际使用的 CI 系统生成配置：
+- 如果是 GitHub Actions：生成 .github/workflows/refactor-guard.yml
+- 如果是 GitLab CI：生成 .gitlab-ci.yml 中的相应 job
+- 如果是 Jenkins：生成 Jenkinsfile 片段
+
+生成后告诉我如何验证 CI 配置是否正确。`,
+'sop-block':
+`开始前：
+  1. 新建一个 Git feature 分支
+     git checkout -b refactor/[模块名]-[日期]
+  2. 确认上下文干净（如果是新任务，先 /clear）
+  3. 明确本次会话只做一件事
+
+执行中：
+  4. 每完成一个文件 → 运行测试 → git commit
+  5. 感觉上下文超过 60% → 主动 /compact
+  6. 遇到不确定 → 停下来问，不要让 Claude 猜
+
+结束时：
+  7. 运行完整测试套件，确认通过
+  8. 开 PR，让 CI 跑验证
+  9. /clear 准备下一个任务`,
+'session-start':
+`本次会话目标（只做这一件事）：
+重构 [替换为具体文件路径]
+
+约束：
+- 保持所有公共接口不变
+- 每修改完一个函数立即运行测试
+- 遇到不确定的业务逻辑，停下来告诉我，不要猜
+- 不要读取 CLAUDE.md 以外的配置文件（除非必要）
+
+开始前，先告诉我：
+1. 你打算如何分步骤进行？
+2. 有什么需要我确认的前提条件？`,
+'refactor-complexity':
+`分析 [文件路径] 中的函数，找出圈复杂度最高的那个。
+
+执行步骤：
+1. 展示该函数及其当前复杂度（不要展示其他部分）
+2. 提出拆分方案（展示拆分后的函数签名列表，等我确认）
+3. 确认后执行重构，每个子函数拆出后立即运行测试
+4. 完成后对比：原函数复杂度 → 重构后最高复杂度
+
+约束：
+- 拆出的子函数如果不需要对外暴露，设为 private/不导出
+- 保持主函数的对外签名完全不变
+- 如果需要跨文件提取公共函数，先告诉我，不要自动执行`,
+'refactor-dry':
+`分析 [模块目录路径] 内的重复代码。
+
+执行步骤：
+1. 列出所有重复超过10行的代码块（显示文件名和行号，不显示代码）
+2. 按重复频率排序，找出最值得提取的前3个
+3. 对最高优先级的重复块，提出提取方案：
+   - 提取到哪个文件？（已有的 utils 还是新建文件？）
+   - 函数签名是什么？
+   - 等我确认后再执行
+
+执行时：
+- 一次只提取一个重复块
+- 提取后在所有使用处替换引用
+- 运行测试确认通过
+- 提交 git，然后继续下一个`,
+'refactor-async':
+`将 [文件路径] 中所有使用回调（callback）的函数迁移到 async/await 模式。
+
+执行规范：
+1. 先列出需要迁移的函数列表，等我确认
+2. 逐个函数迁移（一次只改一个函数）
+3. 每个函数迁移后立即运行测试
+4. 如果该函数被其他文件调用，检查调用方是否需要同步修改
+
+注意事项：
+- 保持函数错误处理逻辑完整（callback 的 err 参数要转换为 try/catch）
+- 如果调用方是外部接口（API endpoint），迁移时保持向后兼容
+- 不要一次性重写整个文件，逐函数进行`,
+'refactor-strangler':
+`为 [单体服务/模块名] 设计渐进式迁移计划（Strangler Fig 模式）。
+
+只输出迁移计划，不执行任何代码修改：
+
+计划要包含：
+1. 阶段划分（每个阶段的目标和可验证的完成条件）
+2. 每个阶段影响的文件范围
+3. 引入路由/适配层的时机和方式
+4. 如何在迁移过程中保持旧系统继续运行
+5. 回滚计划（每个阶段失败时如何回退）
+6. 预估每个阶段需要重构的文件数量
+
+输出计划后等我确认，再逐阶段执行。`,
+'worktree-setup':
+`# 为每个并行重构任务创建独立分支和工作目录
+# （在项目根目录的父目录执行）
+
+# 模块1：auth 重构
+git branch refactor/auth-20240115
+git worktree add ../project-auth refactor/auth-20240115
+
+# 模块2：payment 重构  
+git branch refactor/payment-20240115
+git worktree add ../project-payment refactor/payment-20240115
+
+# 模块3：user 重构
+git branch refactor/user-20240115
+git worktree add ../project-user refactor/user-20240115
+
+# 现在可以打开3个终端，每个目录启动独立的 Claude Code 实例
+# cd ../project-auth && claude
+# cd ../project-payment && claude
+# cd ../project-user && claude`,
+'batch-refactor':
+`使用并行子智能体，处理以下所有使用废弃 [函数名/API名] 的文件。
+
+每个子智能体独立处理一个文件，执行：
+1. 替换废弃调用为新 API：[旧调用格式] → [新调用格式]
+2. 更新对应的 import/require
+3. 运行该文件的测试，确认通过
+4. 报告：文件名 + 替换次数 + 测试状态
+
+文件列表：（从 REFACTOR_PLAN.md 中粘贴文件路径）
+- src/services/UserService.js
+- src/controllers/UserController.js
+- src/utils/UserHelper.js
+[继续列出...]
+
+所有子智能体完成后，汇总报告成功/失败数量。
+失败的文件列出具体原因，不要自动修复。`,
+'integration-verify':
+`对本轮重构的模块执行完整的集成验证。
+
+验证步骤：
+1. 运行所有测试（单元 + 集成 + 特征化），输出通过率
+2. 运行 linter，与 refactor-baseline 标签对比新增的 warning
+3. 对比 git diff（当前 vs refactor-baseline），统计：
+   - 修改的文件数量
+   - 删除的代码行数（应该是正数，代表代码减少）
+   - 新增的测试用例数量
+4. 检查接口兼容性：
+   - 所有对外暴露的函数签名是否与重构前一致
+   - 如有变化，列出所有变化点
+
+5. 生成质量对比报告：
+   格式：[模块名] | 重构前 | 重构后 | 变化
+   行数, 圈复杂度(最高), 测试数量, 测试覆盖率
+
+判断标准：
+✅ 所有测试通过 → 可以合并 PR
+⚠️ 有测试失败 → 列出失败原因，我来决定是否修复
+❌ 接口发生变化 → 必须修复，不允许合并`,
+'perf-verify':
+`为本轮重构的核心功能路径运行性能基准测试。
+
+1. 识别性能敏感的函数（通常是：数据库查询包装、缓存层、高频调用的工具函数）
+2. 如果项目有 benchmark 工具，运行并对比重构前后
+3. 如果没有，用以下简单方式评估：
+   - 运行测试套件计时：time npm test（对比重构前后时间）
+   - 代码层面检查：重构后是否引入了不必要的额外函数调用层
+
+报告格式：
+- 性能无明显变化：✅ 正常
+- 性能下降 < 10%：⚠️ 说明原因
+- 性能下降 > 10%：❌ 需要优化后才能合并`,
+'governance-loop':
+`为本项目配置持续质量巡检，生成可定期运行的检查脚本。
+
+巡检内容：
+1. 扫描最近7天新提交的代码，找出：
+   - 新增的圈复杂度 > 10 的函数
+   - 新增的超过50行的函数
+   - 新增的重复代码块（超过10行）
+2. 检查是否有已废弃但又被重新引入的 API 调用
+3. 检查测试覆盖率是否下降（与上周对比）
+
+输出：生成一个 scripts/quality-check.sh 脚本，
+可以在 CI 中每周自动运行，失败时发送警报。
+
+同时，告诉我如何将这个检查集成到现有的 CI 流程中。`,
+'pr-review':
+`审查以下 PR 的代码变更，重点关注重构质量：
+
+PR 地址/diff 内容：[粘贴 git diff 或 PR 链接]
+
+审查维度：
+1. 是否引入了新的高复杂度函数（复杂度 > 10）？
+2. 是否有重复代码没有提取？
+3. 变量和函数命名是否清晰易懂？
+4. 是否有遗漏测试的关键路径？
+5. 是否破坏了任何现有接口？
+
+输出审查意见（给出具体行号和建议），
+不要重复描述代码本身，只指出问题和改进建议。`,
+'claude-md-update':
+`基于过去一个月的重构进展，更新 CLAUDE.md 文件。
+
+更新内容：
+1. 将已完成重构的模块从优先级列表中移除
+2. 根据实际遇到的坑，补充"已知的坑"部分
+3. 如果有新发现的"禁止触碰区域"，添加进去
+4. 更新技术栈版本信息（如有依赖升级）
+5. 添加本月重构的经验总结（1-3条最重要的教训）
+
+同时生成一份本月重构进度报告：
+- 已重构模块数量
+- 代码行数净减少量
+- 测试覆盖率变化
+- 剩余高优先级模块数量`,
+'debt-trend':
+`基于 Git 历史记录，生成技术债务趋势分析。
+
+分析维度（按月统计，最近6个月）：
+1. 总代码行数趋势（应该逐月下降）
+2. 平均圈复杂度趋势（应该逐月下降）
+3. 测试覆盖率趋势（应该逐月上升）
+4. 无测试文件数量趋势（应该逐月下降）
+
+输出为 Markdown 表格 + 文字总结。
+如果某个指标在恶化，标注 ⚠️ 并分析原因。`
+},
+en: {
+'install-cmd':
+`npm install -g @anthropic-ai/claude-code
+
+# Verify installation
+claude --version
+
+# Navigate to your project
+cd /your/project/root
+
+# Launch Claude Code
+claude`,
+'model-cmd':
+`# Switch model inside a Claude Code session
+/model opus    # Opus 4.6 (recommended for Enterprise)
+/model sonnet  # Sonnet 4.6 (budget-conscious option)`,
+'git-setup':
+`# Confirm the working tree is clean
+git status
+
+# Create a baseline tag (you can always return here)
+git tag refactor-baseline-$(date +%Y%m%d)
+
+# Create the main refactoring branch
+git checkout -b refactor/main
+
+# Push to remote
+git push origin refactor/main`,
+'claude-md-gen':
+`Analyse the current project structure and generate a CLAUDE.md draft file for me.
+
+The file must include:
+1. Tech stack (language, primary frameworks, runtime versions)
+2. Directory structure overview (two levels deep only — no fine-grained detail)
+3. Build command, test command, linting/style-check command
+4. Main module list (list top-level subdirs under src/ with a one-line description of each)
+
+Do not modify any code — only generate the CLAUDE.md file.`,
+'claude-md-manual':
+`# ⚠️ DO NOT TOUCH (never modify)
+- \`/legacy/core/critical_path.*\` — production critical path
+- \`/db/migrations/\` — append-only; never modify existing files
+- \`/config/production.*\` — production config
+
+# Refactoring Priorities
+## High Priority (do first)
+- [ ] /auth/token.js — security vulnerability, cyclomatic complexity 22
+- [ ] /payment/processor.js — zero tests, unmaintained for 6 years
+
+## Medium Priority
+- [ ] /user/service.js — severe code duplication
+- [ ] /api/routes.js — route layer has mixed responsibilities
+
+## Low Priority (do last)
+- [ ] /utils/ — utility functions, low risk
+
+# Refactoring Rules (must be followed in every session)
+1. Run the file's tests immediately after modifying each file
+2. When business logic is unclear, stop and ask — do not guess
+3. Keep external interfaces unchanged (function signatures, API paths)
+4. Commit once after each logical unit is complete
+
+# Known Pitfalls
+- auth module depends on an undocumented global variable \`__LEGACY_SESSION\`
+- payment module has a circular dependency (payment → order → payment)
+- All date handling uses deprecated moment.js — migrate to dayjs`,
+'claude-md-verify':
+`Based on CLAUDE.md, tell me:
+1. What is the tech stack of this project?
+2. Which directories are forbidden from modification?
+3. What is the highest-priority module for the current refactoring effort?
+
+Do not read any other files — answer only from CLAUDE.md.`,
+'agent-dir': `mkdir -p .claude/agents`,
+'agent-explore':
+`---
+name: explore-module
+description: Explore a specified module, generate an analysis report, do not modify any files
+---
+Accept a module path as the argument and perform the following analysis:
+
+1. List all files in the module with their line counts
+2. Identify primary dependencies (import/require analysis)
+3. Find the top 5 functions by complexity (estimate cyclomatic complexity)
+4. Identify duplicate code blocks (similar code exceeding 10 lines)
+5. Report test coverage (if test files exist)
+6. List all externally exported interfaces (exports)
+
+Output format: a concise Markdown report summarising key issues. Do not output full code.
+Do not modify any files.`,
+'agent-refactor':
+`---
+name: refactor-safe
+description: Safely refactor a single file, running tests after each step
+---
+Accept a file path and refactoring objective as arguments, then execute this workflow:
+
+1. Read the file and understand the current implementation
+2. Check whether a corresponding test file exists
+3. If no tests exist, generate characterization tests first and confirm they pass
+4. Execute the refactoring (change only one thing at a time)
+5. Run tests and confirm all pass
+6. If tests fail, roll back the change and report the reason
+7. Output a change summary (what changed and why)
+
+Constraints:
+- Keep all external function signatures unchanged
+- Each refactoring pass targets exactly one issue (complexity / duplication / naming)
+- If business logic is uncertain, stop and describe the question`,
+'agent-verify':
+`---
+name: verify-quality
+description: Quality verification for a refactored module
+---
+Accept a module path as the argument and run the following checks:
+
+1. Run all tests (unit + characterization); report pass rate
+2. Run linter; list any new warnings compared to the main branch
+3. Check function length: identify functions still exceeding 50 lines
+4. Check cyclomatic complexity: identify functions still exceeding 10
+5. Check for hardcoded magic numbers or strings
+6. Output a pass/fail summary table — do not output full code
+
+Criteria:
+- ✅ All tests pass
+- ✅ No new linter errors
+- ⚠️ New warnings exist (acceptable but must be explained)
+- ❌ Tests fail (must be fixed before proceeding)`,
+'agent-test':
+`Use the explore-module sub-agent to analyse the largest subdirectory under src/.
+Output only the analysis report summary — do not read any other files in the project.`,
+'scan-main':
+`Use sub-agents to explore the following four dimensions in parallel.
+Do not modify any files — no write operations permitted.
+
+Sub-agent 1 — Structure analysis:
+- List all modules (directories) under src/ with file count and total line count
+- Identify the apparent architecture pattern (MVC / layered / domain-driven)
+
+Sub-agent 2 — Complexity hotspots:
+- Find the top 20 files by line count
+- Identify files with functions exceeding 100 lines
+- Find modules with obvious code duplication
+
+Sub-agent 3 — Test coverage:
+- Count modules that have test files vs those that do not
+- List core modules with zero test coverage
+
+Sub-agent 4 — Dependency health:
+- Read package.json / requirements.txt / pom.xml
+- List dependencies not updated in more than 3 years
+- Identify dependency versions with known security vulnerabilities
+
+Consolidate all results into a REFACTOR_PLAN.md file.`,
+'scan-deep':
+`Use the explore-module sub-agent for a deep analysis of [replace with your high-risk module path].
+
+Focus on:
+1. Which other modules depend on this one? (More dependents = higher refactoring risk)
+2. Are there circular dependencies?
+3. Is there global state or singletons? (These are the hardest to refactor)
+4. How many external interfaces are exposed? (More interfaces = more compatibility constraints)
+
+Do not modify any files — output the analysis report only.`,
+'debt-score':
+`Based on the analysis in REFACTOR_PLAN.md, score each module for technical debt.
+
+Scoring dimensions (1–5 each):
+- Security risk: known vulnerabilities, potential auth bypass
+- Maintenance cost: code complexity, missing documentation, understandability
+- Business impact: scope of user impact if this module fails
+- Refactoring difficulty: number of dependencies, test coverage, interface complexity
+
+Priority score = (Security risk + Maintenance cost + Business impact) / Refactoring difficulty
+Higher score = should be done sooner
+
+Output results as CSV:
+module_path,security_risk,maintenance_cost,business_impact,refactoring_difficulty,priority_score,suggested_order
+
+Also provide written recommendations:
+- Top 3 modules to address immediately (with reasons)
+- Modules to skip for now (with reasons)
+- Risk points requiring special attention`,
+'char-test':
+`Generate characterization tests for all public methods in [replace with module path, e.g. src/services/PaymentService.js].
+
+Testing rules:
+1. Goal: record current behaviour, not verify correctness
+2. Each public method needs at least these test cases:
+   - Happy path with normal input
+   - null / undefined input
+   - Boundary values: empty string, empty array, 0
+   - Cases expected to throw an exception
+3. Test file naming: append .characterization.test.js to the original filename
+4. Use the existing test framework (check package.json to confirm)
+5. Add a comment to every test: // CHARACTERIZATION: records current behaviour
+
+After generating the tests, run them immediately to confirm all pass.
+If any test cannot pass (meaning the current code itself has a bug),
+stop and report it to me — do not auto-fix.`,
+'char-test-batch':
+`Use parallel sub-agents to generate characterization tests for the following modules:
+(Each sub-agent handles one module independently)
+
+- src/services/UserService.js
+- src/utils/DateHelper.js
+- src/middleware/AuthMiddleware.js
+
+Each sub-agent reports back:
+- Number of test cases generated
+- Test run result (pass / fail count)
+- Whether a bug in the current code was discovered (test could not pass)
+
+Final consolidated report: which modules now have a complete test safety net and are ready for refactoring.`,
+'ci-gen':
+`Generate a CI config file for this project to automatically verify refactoring quality on every push.
+
+Requirements:
+1. Run all unit tests (including .characterization.test.* files)
+2. Run linter — fail the CI build on errors
+3. Check for any new functions exceeding 50 lines (warn, do not fail)
+4. Output a test coverage report
+
+Generate config based on the CI system actually in use:
+- GitHub Actions → .github/workflows/refactor-guard.yml
+- GitLab CI → corresponding job in .gitlab-ci.yml
+- Jenkins → Jenkinsfile snippet
+
+After generating, tell me how to verify the CI config is correct.`,
+'sop-block':
+`Before starting:
+  1. Create a new Git feature branch
+     git checkout -b refactor/[module-name]-[date]
+  2. Confirm context is clean (run /clear if this is a new task)
+  3. Confirm this session has exactly ONE objective
+
+During execution:
+  4. After each file: run tests → git commit
+  5. Context usage feels high (>60%) → run /compact proactively
+  6. Uncertain about something → stop and ask; do not let Claude guess
+
+Wrapping up:
+  7. Run the full test suite; confirm it passes
+  8. Open a PR and let CI run verification
+  9. Run /clear to prepare for the next task`,
+'session-start':
+`Session objective (this session does ONE thing only):
+Refactor [replace with specific file path]
+
+Constraints:
+- Keep all public interfaces unchanged
+- Run tests immediately after modifying each function
+- When business logic is unclear, stop and tell me — do not guess
+- Do not read config files other than CLAUDE.md (unless strictly necessary)
+
+Before starting, tell me:
+1. How do you plan to proceed step by step?
+2. Are there any preconditions you need me to confirm?`,
+'refactor-complexity':
+`Analyse the functions in [file path] and identify the one with the highest cyclomatic complexity.
+
+Steps:
+1. Show that function and its current complexity (do not show anything else)
+2. Propose a decomposition plan (show the list of new function signatures — wait for my approval)
+3. After approval, execute the refactoring; run tests after each sub-function is extracted
+4. When done, compare: original function complexity → highest complexity post-refactoring
+
+Constraints:
+- Sub-functions that don't need to be publicly exposed should be private / not exported
+- The main function's external signature must remain completely unchanged
+- If extracting a shared function across files is needed, tell me first — do not execute automatically`,
+'refactor-dry':
+`Analyse duplicate code in [module directory path].
+
+Steps:
+1. List all code blocks duplicated more than 10 lines (show filename and line numbers — no code)
+2. Sort by duplication frequency; identify the top 3 most worthwhile candidates for extraction
+3. For the highest-priority duplicate block, propose an extraction plan:
+   - Which file should it be extracted to? (existing utils or a new file?)
+   - What is the function signature?
+   - Wait for my approval before executing
+
+Execution rules:
+- Extract one duplicate block at a time
+- After extraction, replace all usages with the new reference
+- Run tests to confirm they pass
+- Commit to git, then proceed to the next one`,
+'refactor-async':
+`Migrate all callback-based functions in [file path] to async/await.
+
+Execution rules:
+1. First list the functions to be migrated — wait for my approval
+2. Migrate one function at a time
+3. Run tests immediately after each function is migrated
+4. If a function is called by other files, check whether callers need to be updated simultaneously
+
+Notes:
+- Keep error-handling logic intact (the callback err parameter must become a try/catch)
+- If a caller is an external interface (API endpoint), maintain backward compatibility during migration
+- Do not rewrite the entire file at once — proceed function by function`,
+'refactor-strangler':
+`Design an incremental migration plan for [monolith service/module name] using the Strangler Fig pattern.
+
+Output the migration plan only — do not execute any code changes:
+
+The plan must include:
+1. Phase breakdown (goal and verifiable completion criteria for each phase)
+2. File scope affected by each phase
+3. When and how to introduce the routing/adapter layer
+4. How to keep the old system running throughout the migration
+5. Rollback plan (how to revert if a phase fails)
+6. Estimated number of files to refactor per phase
+
+Wait for my confirmation after outputting the plan, then execute phase by phase.`,
+'worktree-setup':
+`# Create isolated branches and working directories for each parallel refactoring task
+# (Run from the parent directory of the project root)
+
+# Module 1: auth refactoring
+git branch refactor/auth-20240115
+git worktree add ../project-auth refactor/auth-20240115
+
+# Module 2: payment refactoring
+git branch refactor/payment-20240115
+git worktree add ../project-payment refactor/payment-20240115
+
+# Module 3: user refactoring
+git branch refactor/user-20240115
+git worktree add ../project-user refactor/user-20240115
+
+# Open 3 terminals; start an independent Claude Code instance in each directory
+# cd ../project-auth && claude
+# cd ../project-payment && claude
+# cd ../project-user && claude`,
+'batch-refactor':
+`Use parallel sub-agents to process all files that use the deprecated [function/API name].
+
+Each sub-agent handles one file independently and:
+1. Replaces deprecated calls with the new API: [old call format] → [new call format]
+2. Updates the corresponding import/require statements
+3. Runs that file's tests to confirm they pass
+4. Reports: filename + replacement count + test status
+
+File list: (paste file paths from REFACTOR_PLAN.md)
+- src/services/UserService.js
+- src/controllers/UserController.js
+- src/utils/UserHelper.js
+[continue listing...]
+
+After all sub-agents finish, output a consolidated success/failure count.
+For failed files, list the specific reason — do not auto-fix.`,
+'integration-verify':
+`Run full integration verification on the modules refactored in this batch.
+
+Verification steps:
+1. Run all tests (unit + integration + characterization); output pass rate
+2. Run linter; compare new warnings against the refactor-baseline tag
+3. Diff git (current vs refactor-baseline) and report:
+   - Number of files changed
+   - Net lines of code deleted (should be positive — code reduced)
+   - Number of new test cases added
+4. Check interface compatibility:
+   - Are all externally exposed function signatures identical to pre-refactoring?
+   - If any changed, list every change
+
+5. Generate a quality comparison report:
+   Format: [module] | Before | After | Delta
+   Lines of code, max cyclomatic complexity, test count, test coverage
+
+Decision criteria:
+✅ All tests pass → OK to merge PR
+⚠️ Tests failing → list failure reasons; I decide whether to fix
+❌ Interfaces changed → must be fixed; merge not allowed`,
+'perf-verify':
+`Run performance benchmark tests on the core function paths refactored in this batch.
+
+1. Identify performance-sensitive functions (typically: DB query wrappers, cache layer, high-frequency utility calls)
+2. If the project has a benchmark tool, run it and compare pre/post refactoring results
+3. If not, use this simple evaluation:
+   - Time the test suite: time npm test (compare before and after)
+   - Code-level check: did the refactoring introduce unnecessary extra function call layers?
+
+Report format:
+- No noticeable performance change: ✅ OK
+- Performance degraded < 10%: ⚠️ explain the cause
+- Performance degraded > 10%: ❌ must optimise before merging`,
+'governance-loop':
+`Configure continuous quality monitoring for this project and generate a script that can run on a schedule.
+
+Monitoring scope:
+1. Scan code committed in the last 7 days and flag:
+   - Newly introduced functions with cyclomatic complexity > 10
+   - Newly introduced functions exceeding 50 lines
+   - Newly introduced duplicate code blocks (> 10 lines)
+2. Check whether any deprecated APIs that were removed have been re-introduced
+3. Check whether test coverage has dropped (compared to last week)
+
+Output: generate a scripts/quality-check.sh script
+that can run automatically in CI every week and alert on failure.
+
+Also tell me how to integrate this check into the existing CI pipeline.`,
+'pr-review':
+`Review the following PR's code changes with a focus on refactoring quality:
+
+PR URL / diff content: [paste git diff or PR link]
+
+Review dimensions:
+1. Are any new high-complexity functions introduced (complexity > 10)?
+2. Is there duplicate code that should be extracted?
+3. Are variable and function names clear and descriptive?
+4. Are there critical code paths missing tests?
+5. Are any existing interfaces broken?
+
+Output review comments (with specific line numbers and suggestions).
+Do not re-describe the code itself — only flag problems and improvements.`,
+'claude-md-update':
+`Update the CLAUDE.md file based on the last month's refactoring progress.
+
+Updates to make:
+1. Remove modules that have been fully refactored from the priority list
+2. Add newly discovered pitfalls to the "Known Pitfalls" section
+3. Add any newly identified "Do Not Touch" zones
+4. Update tech stack version info (if any dependencies were upgraded)
+5. Add this month's lessons learned (top 1–3 most important takeaways)
+
+Also generate a monthly refactoring progress report:
+- Number of modules refactored
+- Net lines of code deleted
+- Change in test coverage
+- Number of remaining high-priority modules`,
+'debt-trend':
+`Generate a technical debt trend analysis based on Git history.
+
+Analysis dimensions (monthly statistics, last 6 months):
+1. Total lines of code trend (should decrease month over month)
+2. Average cyclomatic complexity trend (should decrease month over month)
+3. Test coverage trend (should increase month over month)
+4. Number of untested files trend (should decrease month over month)
+
+Output as a Markdown table + written summary.
+If any metric is worsening, flag it with ⚠️ and analyse the reason.`
+}
+};
+
+// ─────────────────────────────────────────
 //  State
 // ─────────────────────────────────────────
 const TOTAL_STEPS = 12;
@@ -1767,10 +2656,16 @@ function applyLang(lang) {
     const idx = parseInt(btn.dataset.i18nDone);
     btn.textContent = doneSteps.has(idx) ? t['btn-done-state'] : t['btn-mark-done'];
   });
+  // Prompt bodies — swap all translatable prompt content
+  const p = PROMPTS[lang];
+  Object.keys(p).forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = p[id];
+  });
   // Progress sep
   updateProgress();
   // Toggle button label
-  document.getElementById('langToggle').textContent = lang === 'zh' ? 'EN' : 'CN';
+  document.getElementById('langToggle').textContent = lang === 'zh' ? 'EN' : '中文';
   document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
 }
 
